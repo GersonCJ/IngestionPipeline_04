@@ -1,0 +1,9 @@
+version: 2
+sources:
+  - name: trusted
+    schema: trusted_atv4
+    tables:
+      - name: bancos
+      - name: complaints
+      - name: employer_segments
+      - name: employer_cnpj

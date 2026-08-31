@@ -1,0 +1,73 @@
+services:
+
+  app:
+    image: ingestion_atv4
+    build: .
+    container_name: module3_ingestion
+    command: uv run main.py
+    volumes:
+      - ./data/raw_free:/app/data/raw:z
+      - ./data/trusted_parquet:/app/trusted:z
+      - ./data/delivered_gold:/app/delivered:z
+    depends_on:
+      - postgres-db
+    networks:
+      - private_network
+
+  postgres-db:
+    image: postgres
+    container_name: postgres_atv4
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - data_sql:/var/lib/postgresql:z
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USER}", "-d", "${DB_NAME}"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    networks:
+      - private_network
+  
+  elt_transformation:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dbt
+    container_name: dbt_atv4
+    working_dir: /usr/app/dbt_atv4_project
+    entrypoint: [""]
+    command: ["sleep", "infinity"]
+    env_file: .env
+    volumes:
+      - ./elt_dbt_atv4:/usr/app/dbt_atv4_project
+      - ./profiles:/root/.dbt
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - private_network
+
+  dbt-docs:
+    image: nginx:alpine
+    container_name: static_dbt
+    volumes:
+      - ./elt_dbt_atv4/target:/usr/share/nginx/html:ro
+    ports:
+      - "8181:80"
+
+volumes:
+
+  data_sql:
+    name: "data_sql"
+    labels:
+      description: "Postgresql persistent data storage"
+
+networks:
+  private_network: 
+    driver: bridge
+
+    

@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: stg_bancos
+    columns:
+      - name: segmento
+        tests:
+          - accepted_values:
+              values: ['S1', 'S2', 'S3', 'S4', 'S5']
+
+  - name: stg_complains
+    columns:
+      - name: ano
+        tests:
+          - not_null
+      - name: trimestre
+        tests:
+          - not_null
+      - name: qtd_recl_total
+        tests:
+          - not_null
+      - name: tipo
+        tests:
+          - accepted_values:
+              values: ['Conglomerado', 'Banco/financeira']
+
+  - name: stg_empregados
+    columns:
+      - name: chave_nome
+        tests:
+          - unique
+          - not_null

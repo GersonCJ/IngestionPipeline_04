@@ -1,0 +1,13 @@
+name: 'atv4'
+version: '1.0.0'
+profile: 'atv4'
+
+model-paths: ["models"]
+target-path: "target"
+
+models:
+  atv4:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
