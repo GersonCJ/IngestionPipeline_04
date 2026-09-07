@@ -7,6 +7,7 @@ requires-python = ">=3.14"
 dependencies = [
     "dotenv>=0.9.9",
     "fastparquet>=2026.5.0",
+    "openmetadata-ingestion[dbt,postgres]>=2.0.1.0",
     "pandas>=3.0.5",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
