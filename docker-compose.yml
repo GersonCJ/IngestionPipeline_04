@@ -77,6 +77,26 @@ services:
     networks:
       - private_network
 
+  openmetadata-server:
+    image: openmetadata/server:1.3.2
+    container_name: openmetadata_server
+    environment:
+      SERVER_HOST_ENV: "0.0.0.0"
+      DB_DRIVER_CLASS: "org.postgresql.Driver"
+      DB_SCHEME: "postgresql"
+      DB_USER: ${DB_USER:-postgres}
+      DB_USER_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+      DB_DATABASE: openmetadata_db
+    ports:
+      - "8585:8585"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - private_network
+
   redis:
     image: redis:7.2-bookworm
     expose:
@@ -340,9 +360,13 @@ volumes:
     name: "data_sql"
     labels:
       description: "Postgresql persistent data storage"
+  gx_docs:
+    name: "gx_docs"
 
 networks:
   private_network: 
+    driver: bridge
+  front_network:
     driver: bridge
 
     
