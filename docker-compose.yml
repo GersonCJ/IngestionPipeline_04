@@ -20,7 +20,7 @@ x-airflow-common:
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:-airflow_jwt_secret}
     AIRFLOW__API_AUTH__JWT_ISSUER: ${AIRFLOW__API_AUTH__JWT_ISSUER:-airflow}
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-    _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-docker"
+    _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-docker openmetadata-managed-apis~=1.3.2"
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags:z
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs:z
@@ -89,6 +89,10 @@ services:
       DB_HOST: postgres-db
       DB_PORT: 5432
       DB_DATABASE: openmetadata_db
+      PIPELINE_SERVICE_CLIENT_CLASS: "org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient"
+      PIPELINE_SERVICE_CLIENT_ENDPOINT: "http://airflow-apiserver:8080"
+      PIPELINE_SERVICE_CLIENT_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      PIPELINE_SERVICE_CLIENT_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
     ports:
       - "8585:8585"
     depends_on:
@@ -96,6 +100,7 @@ services:
         condition: service_healthy
     networks:
       - private_network
+      - front_network
 
   redis:
     image: redis:7.2-bookworm
