@@ -1964,3 +1964,220 @@ having count(*) > 1
 [0m22:01:16.183120 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7535b93cebd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7535baec8500>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7535b9441280>]}
 [0m22:01:16.184482 [debug] [MainThread]: Flushing usage events
 [0m22:01:16.788872 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m09:57:46.150776 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001D265AB2BA0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001D2695E39D0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001D2695E3750>]}
+
+
+============================== 09:57:46.280072 | e4e20fa1-4ab3-4c46-b3e9-b4380f4fb2ae ==============================
+[0m09:57:46.280072 [info ] [MainThread]: Running with dbt=1.12.3
+[0m09:57:46.280775 [debug] [MainThread]: running dbt with arguments {'maximum_seed_size_mib': '1', 'no_print': 'None', 'version_check': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'target_path': 'None', 'static_parser': 'True', 'printer_width': '80', 'write_json': 'True', 'introspect': 'True', 'log_cache_events': 'False', 'empty': 'None', 'cache_selected_only': 'False', 'fail_fast': 'False', 'debug': 'False', 'log_format': 'default', 'partial_parse': 'True', 'send_anonymous_usage_stats': 'True', 'quiet': 'False', 'warn_error': 'None', 'profiles_dir': 'C:\\Users\\letic\\.dbt', 'use_colors': 'True', 'hints_enabled': 'True', 'invocation_command': 'dbt docs generate', 'use_experimental_parser': 'False', 'indirect_selection': 'eager', 'log_path': 'D:\\ingestao\\IngestionPipeline_04\\elt_dbt_atv4\\logs'}
+[0m09:57:46.283418 [error] [MainThread]: [[31mERROR[0m]: Encountered an error:
+Runtime Error
+  Could not find profile named 'atv4'
+[0m09:57:46.284552 [debug] [MainThread]: Command `dbt docs generate` failed at 09:57:46.284346 after 0.30 seconds
+[0m09:57:46.284990 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001D26967A9E0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001D269578050>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001D2695F2F10>]}
+[0m09:57:46.285475 [debug] [MainThread]: Flushing usage events
+[0m09:57:47.533781 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m09:58:58.696694 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001A265B16510>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001A263465090>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001A26847F890>]}
+
+
+============================== 09:58:58.701167 | 5cc765c0-7fd4-4bd1-9546-b1e9eeddff03 ==============================
+[0m09:58:58.701167 [info ] [MainThread]: Running with dbt=1.12.3
+[0m09:58:58.701847 [debug] [MainThread]: running dbt with arguments {'maximum_seed_size_mib': '1', 'no_print': 'None', 'version_check': 'True', 'target_path': 'None', 'static_parser': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'printer_width': '80', 'write_json': 'True', 'empty': 'None', 'log_cache_events': 'False', 'introspect': 'True', 'cache_selected_only': 'False', 'fail_fast': 'False', 'debug': 'False', 'log_format': 'default', 'profiles_dir': '.', 'send_anonymous_usage_stats': 'True', 'quiet': 'False', 'warn_error': 'None', 'partial_parse': 'True', 'use_colors': 'True', 'hints_enabled': 'True', 'invocation_command': 'dbt docs generate --profiles-dir .', 'use_experimental_parser': 'False', 'indirect_selection': 'eager', 'log_path': 'D:\\ingestao\\IngestionPipeline_04\\elt_dbt_atv4\\logs'}
+[0m09:58:58.704149 [error] [MainThread]: [[31mERROR[0m]: Encountered an error:
+Runtime Error
+  Could not find profile named 'atv4'
+[0m09:58:58.705182 [debug] [MainThread]: Command `dbt docs generate` failed at 09:58:58.705065 after 0.16 seconds
+[0m09:58:58.705541 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001A2683EE8B0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001A26841E690>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001A268497AC0>]}
+[0m09:58:58.705909 [debug] [MainThread]: Flushing usage events
+[0m09:58:59.574679 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m10:01:20.179966 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F1FFC6510>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F2292F890>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F2292F610>]}
+
+
+============================== 10:01:20.184416 | 9b104faa-6f67-445c-b7ad-dcf41be61f00 ==============================
+[0m10:01:20.184416 [info ] [MainThread]: Running with dbt=1.12.3
+[0m10:01:20.185087 [debug] [MainThread]: running dbt with arguments {'version_check': 'True', 'no_print': 'None', 'static_parser': 'True', 'target_path': 'None', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'maximum_seed_size_mib': '1', 'printer_width': '80', 'write_json': 'True', 'introspect': 'True', 'log_cache_events': 'False', 'empty': 'None', 'cache_selected_only': 'False', 'log_format': 'default', 'debug': 'False', 'fail_fast': 'False', 'partial_parse': 'True', 'send_anonymous_usage_stats': 'True', 'quiet': 'False', 'warn_error': 'None', 'profiles_dir': '..\\profiles', 'invocation_command': 'dbt docs generate --profiles-dir ..\\profiles', 'hints_enabled': 'True', 'use_colors': 'True', 'use_experimental_parser': 'False', 'indirect_selection': 'eager', 'log_path': 'D:\\ingestao\\IngestionPipeline_04\\elt_dbt_atv4\\logs'}
+[0m10:01:20.626571 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '9b104faa-6f67-445c-b7ad-dcf41be61f00', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F2289B5C0>]}
+[0m10:01:20.697688 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': '9b104faa-6f67-445c-b7ad-dcf41be61f00', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F20BD07C0>]}
+[0m10:01:20.704889 [info ] [MainThread]: Registered adapter: postgres=1.11.0
+[0m10:01:20.983213 [debug] [MainThread]: checksum: 4041e9a5adfa7726ee66a3e8995880e88c6c8c31e367b5e16fd50575a761d42d, vars: {}, profile: atv4, target: dev, version: 1.12.3
+[0m10:01:21.110098 [info ] [MainThread]: Unable to do partial parsing because of a version mismatch
+[0m10:01:21.110611 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'partial_parser', 'label': '9b104faa-6f67-445c-b7ad-dcf41be61f00', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F22FD9D50>]}
+[0m10:01:22.907281 [warn ] [MainThread]: [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'stg_bancos' in
+package 'atv4' (models\schema.yml). Arguments to generic tests should be nested
+under the `arguments` property.
+[0m10:01:22.907892 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'deprecation', 'label': '9b104faa-6f67-445c-b7ad-dcf41be61f00', 'property_': 'warn', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F239166C0>]}
+[0m10:01:23.238141 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': '9b104faa-6f67-445c-b7ad-dcf41be61f00', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F24B2CAD0>]}
+[0m10:01:23.347981 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': '9b104faa-6f67-445c-b7ad-dcf41be61f00', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F24F1F860>]}
+[0m10:01:23.348469 [info ] [MainThread]: Found 4 models, 8 data tests, 4 sources, 479 macros
+[0m10:01:23.348990 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '9b104faa-6f67-445c-b7ad-dcf41be61f00', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F24A4E750>]}
+[0m10:01:23.351662 [info ] [MainThread]: 
+[0m10:01:23.352181 [info ] [MainThread]: Concurrency: 4 threads (target='dev')
+[0m10:01:23.352596 [info ] [MainThread]: 
+[0m10:01:23.353221 [debug] [MainThread]: Acquiring new postgres connection 'master'
+[0m10:01:23.357317 [debug] [ThreadPool]: Acquiring new postgres connection 'list_pipeline_db_delivery_atv4'
+[0m10:01:25.126348 [debug] [ThreadPool]: Using postgres connection "list_pipeline_db_delivery_atv4"
+[0m10:01:25.126772 [debug] [ThreadPool]: On list_pipeline_db_delivery_atv4: /* {"app": "dbt", "dbt_version": "1.12.3", "profile_name": "atv4", "target_name": "dev", "connection_name": "list_pipeline_db_delivery_atv4"} */
+select
+      'pipeline_db' as database,
+      tablename as name,
+      schemaname as schema,
+      'table' as type
+    from pg_tables
+    where schemaname ilike 'delivery_atv4'
+    union all
+    select
+      'pipeline_db' as database,
+      viewname as name,
+      schemaname as schema,
+      'view' as type
+    from pg_views
+    where schemaname ilike 'delivery_atv4'
+    union all
+    select
+      'pipeline_db' as database,
+      matviewname as name,
+      schemaname as schema,
+      'materialized_view' as type
+    from pg_matviews
+    where schemaname ilike 'delivery_atv4'
+    union all
+    select distinct
+     'pipeline_db' as database,
+     proname as name,
+     ns.nspname as schema,
+     'function' as type
+    from pg_proc
+     join pg_namespace as ns on pronamespace = ns.oid
+    where ns.nspname ilike 'delivery_atv4'
+  
+[0m10:01:25.127152 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m10:01:25.553956 [debug] [ThreadPool]: Postgres adapter: Error running SQL: /* {"app": "dbt", "dbt_version": "1.12.3", "profile_name": "atv4", "target_name": "dev", "connection_name": "list_pipeline_db_delivery_atv4"} */
+select
+      'pipeline_db' as database,
+      tablename as name,
+      schemaname as schema,
+      'table' as type
+    from pg_tables
+    where schemaname ilike 'delivery_atv4'
+    union all
+    select
+      'pipeline_db' as database,
+      viewname as name,
+      schemaname as schema,
+      'view' as type
+    from pg_views
+    where schemaname ilike 'delivery_atv4'
+    union all
+    select
+      'pipeline_db' as database,
+      matviewname as name,
+      schemaname as schema,
+      'materialized_view' as type
+    from pg_matviews
+    where schemaname ilike 'delivery_atv4'
+    union all
+    select distinct
+     'pipeline_db' as database,
+     proname as name,
+     ns.nspname as schema,
+     'function' as type
+    from pg_proc
+     join pg_namespace as ns on pronamespace = ns.oid
+    where ns.nspname ilike 'delivery_atv4'
+  
+[0m10:01:25.554386 [debug] [ThreadPool]: Postgres adapter: Rolling back transaction.
+[0m10:01:25.554770 [debug] [ThreadPool]: Postgres adapter: Error running SQL: macro list_relations_without_caching
+[0m10:01:25.555077 [debug] [ThreadPool]: Postgres adapter: Rolling back transaction.
+[0m10:01:25.555409 [debug] [ThreadPool]: On list_pipeline_db_delivery_atv4: No close available on handle
+[0m10:01:25.556243 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m10:01:25.556563 [debug] [MainThread]: Connection 'list_pipeline_db_delivery_atv4' was properly closed.
+[0m10:01:25.557027 [error] [MainThread]: [[31mERROR[0m]: Encountered an error:
+Database Error
+  'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+[0m10:01:25.557841 [warn ] [MainThread]: [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 2 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+[0m10:01:25.559097 [debug] [MainThread]: Command `dbt docs generate` failed at 10:01:25.558947 after 5.57 seconds
+[0m10:01:25.559506 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F25248680>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F24F491D0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x0000025F25234050>]}
+[0m10:01:25.559925 [debug] [MainThread]: Flushing usage events
+[0m10:01:26.777339 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m23:57:32.063200 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79f4172469f0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79f417b22a20>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79f417247320>]}
+
+
+============================== 23:57:32.074055 | b1c06837-8911-4e74-bd10-19d50dfb68f9 ==============================
+[0m23:57:32.074055 [info ] [MainThread]: Running with dbt=1.9.0
+[0m23:57:32.075888 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'debug': 'False', 'fail_fast': 'False', 'log_path': '/usr/app/dbt_atv4_project/logs', 'version_check': 'True', 'profiles_dir': '/root/.dbt', 'use_colors': 'True', 'use_experimental_parser': 'False', 'empty': 'None', 'quiet': 'False', 'no_print': 'None', 'log_format': 'default', 'invocation_command': 'dbt debug', 'static_parser': 'True', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'target_path': 'None', 'introspect': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m23:57:32.099107 [info ] [MainThread]: dbt version: 1.9.0
+[0m23:57:32.103258 [info ] [MainThread]: python version: 3.12.4
+[0m23:57:32.105932 [info ] [MainThread]: python path: /usr/local/bin/python
+[0m23:57:32.108422 [info ] [MainThread]: os info: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.31
+[0m23:57:32.126557 [error] [MainThread]: Encountered an error:
+Parsing Error
+  Env var required but not provided: 'DB_HOST'
+[0m23:57:32.130623 [debug] [MainThread]: Resource report: {"command_name": "debug", "command_success": false, "command_wall_clock_time": 0.24677214, "process_in_blocks": "1403", "process_kernel_time": 0.209719, "process_mem_max_rss": "86844", "process_out_blocks": "48", "process_user_time": 1.375278}
+[0m23:57:32.132276 [debug] [MainThread]: Command `dbt debug` failed at 23:57:32.132089 after 0.25 seconds
+[0m23:57:32.134559 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79f416cedb80>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79f417117d70>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79f416e71d00>]}
+[0m23:57:32.136159 [debug] [MainThread]: Flushing usage events
+[0m23:57:33.066933 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m00:04:02.584935 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d7861d13d10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d7862459640>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d7861e14a40>]}
+
+
+============================== 00:04:02.614196 | c3885da2-e1a1-4119-8d3a-08521b4a6e56 ==============================
+[0m00:04:02.614196 [info ] [MainThread]: Running with dbt=1.9.0
+[0m00:04:02.617334 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'debug': 'False', 'version_check': 'True', 'log_path': '/usr/app/dbt_atv4_project/logs', 'profiles_dir': '/root/.dbt', 'fail_fast': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'empty': 'None', 'log_format': 'default', 'introspect': 'True', 'invocation_command': 'dbt debug', 'static_parser': 'True', 'target_path': 'None', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'send_anonymous_usage_stats': 'True'}
+[0m00:04:02.710242 [info ] [MainThread]: dbt version: 1.9.0
+[0m00:04:02.711984 [info ] [MainThread]: python version: 3.12.4
+[0m00:04:02.713345 [info ] [MainThread]: python path: /usr/local/bin/python
+[0m00:04:02.716712 [info ] [MainThread]: os info: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.31
+[0m00:04:02.932602 [info ] [MainThread]: Using profiles dir at /root/.dbt
+[0m00:04:02.938812 [info ] [MainThread]: Using profiles.yml file at /root/.dbt/profiles.yml
+[0m00:04:02.941279 [info ] [MainThread]: Using dbt_project.yml file at /usr/app/dbt_atv4_project/dbt_project.yml
+[0m00:04:02.943456 [info ] [MainThread]: adapter type: postgres
+[0m00:04:02.945259 [info ] [MainThread]: adapter version: 1.9.0
+[0m00:04:03.269292 [info ] [MainThread]: Configuration:
+[0m00:04:03.278533 [info ] [MainThread]:   profiles.yml file [[32mOK found and valid[0m]
+[0m00:04:03.281265 [info ] [MainThread]:   dbt_project.yml file [[32mOK found and valid[0m]
+[0m00:04:03.286053 [info ] [MainThread]: Required dependencies:
+[0m00:04:03.288388 [debug] [MainThread]: Executing "git --help"
+[0m00:04:03.346041 [debug] [MainThread]: STDOUT: "b"usage: git [--version] [--help] [-C <path>] [-c <name>=<value>]\n           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]\n           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--bare]\n           [--git-dir=<path>] [--work-tree=<path>] [--namespace=<name>]\n           <command> [<args>]\n\nThese are common Git commands used in various situations:\n\nstart a working area (see also: git help tutorial)\n   clone             Clone a repository into a new directory\n   init              Create an empty Git repository or reinitialize an existing one\n\nwork on the current change (see also: git help everyday)\n   add               Add file contents to the index\n   mv                Move or rename a file, a directory, or a symlink\n   restore           Restore working tree files\n   rm                Remove files from the working tree and from the index\n   sparse-checkout   Initialize and modify the sparse-checkout\n\nexamine the history and state (see also: git help revisions)\n   bisect            Use binary search to find the commit that introduced a bug\n   diff              Show changes between commits, commit and working tree, etc\n   grep              Print lines matching a pattern\n   log               Show commit logs\n   show              Show various types of objects\n   status            Show the working tree status\n\ngrow, mark and tweak your common history\n   branch            List, create, or delete branches\n   commit            Record changes to the repository\n   merge             Join two or more development histories together\n   rebase            Reapply commits on top of another base tip\n   reset             Reset current HEAD to the specified state\n   switch            Switch branches\n   tag               Create, list, delete or verify a tag object signed with GPG\n\ncollaborate (see also: git help workflows)\n   fetch             Download objects and refs from another repository\n   pull              Fetch from and integrate with another repository or a local branch\n   push              Update remote refs along with associated objects\n\n'git help -a' and 'git help -g' list available subcommands and some\nconcept guides. See 'git help <command>' or 'git help <concept>'\nto read about a specific subcommand or concept.\nSee 'git help git' for an overview of the system.\n""
+[0m00:04:03.347407 [debug] [MainThread]: STDERR: "b''"
+[0m00:04:03.350526 [info ] [MainThread]:  - git [[32mOK found[0m]
+
+[0m00:04:03.352031 [info ] [MainThread]: Connection:
+[0m00:04:03.354398 [info ] [MainThread]:   host: postgres-db
+[0m00:04:03.357021 [info ] [MainThread]:   port: 5432
+[0m00:04:03.368230 [info ] [MainThread]:   user: postgres
+[0m00:04:03.370840 [info ] [MainThread]:   database: pipeline_db
+[0m00:04:03.372355 [info ] [MainThread]:   schema: delivery_atv4
+[0m00:04:03.373791 [info ] [MainThread]:   connect_timeout: 10
+[0m00:04:03.377544 [info ] [MainThread]:   role: None
+[0m00:04:03.379273 [info ] [MainThread]:   search_path: None
+[0m00:04:03.382018 [info ] [MainThread]:   keepalives_idle: 0
+[0m00:04:03.385431 [info ] [MainThread]:   sslmode: None
+[0m00:04:03.386936 [info ] [MainThread]:   sslcert: None
+[0m00:04:03.389041 [info ] [MainThread]:   sslkey: None
+[0m00:04:03.391676 [info ] [MainThread]:   sslrootcert: None
+[0m00:04:03.394002 [info ] [MainThread]:   application_name: dbt
+[0m00:04:03.397169 [info ] [MainThread]:   retries: 1
+[0m00:04:03.410661 [info ] [MainThread]: Registered adapter: postgres=1.9.0
+[0m00:04:03.650652 [debug] [MainThread]: Acquiring new postgres connection 'debug'
+[0m00:04:03.736889 [debug] [MainThread]: Using postgres connection "debug"
+[0m00:04:03.738192 [debug] [MainThread]: On debug: select 1 as id
+[0m00:04:03.739480 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m00:04:03.764456 [debug] [MainThread]: SQL status: SELECT 1 in 0.025 seconds
+[0m00:04:03.766579 [debug] [MainThread]: On debug: Close
+[0m00:04:03.774571 [info ] [MainThread]:   Connection test: [[32mOK connection ok[0m]
+
+[0m00:04:03.777173 [info ] [MainThread]: [32mAll checks passed![0m
+[0m00:04:03.782944 [debug] [MainThread]: Resource report: {"command_name": "debug", "command_success": true, "command_wall_clock_time": 1.3450501, "process_in_blocks": "5051", "process_kernel_time": 0.245121, "process_mem_max_rss": "101608", "process_out_blocks": "72", "process_user_time": 1.993653}
+[0m00:04:03.792185 [debug] [MainThread]: Command `dbt debug` succeeded at 00:04:03.791991 after 1.35 seconds
+[0m00:04:03.793363 [debug] [MainThread]: Connection 'debug' was properly closed.
+[0m00:04:03.794662 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d786034be60>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d7861f0da30>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d7862180b90>]}
+[0m00:04:03.795953 [debug] [MainThread]: Flushing usage events
+[0m00:04:04.386472 [debug] [MainThread]: An error was encountered while trying to flush usage events
