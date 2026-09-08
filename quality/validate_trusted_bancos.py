@@ -1,149 +1,116 @@
-import great_expectations as gx
 import sys
+from pathlib import Path
 
-# =========================================================
-# 1. CARREGAR GX
-# =========================================================
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-context = gx.get_context(
-    mode="file",
-    project_root_dir="quality/gx_project"
-)
+import pandas as pd
+import great_expectations as gx
 
-
-# =========================================================
-# 2. RECUPERAR DADOS CONFIGURADOS
-# =========================================================
-
-data_source = context.data_sources.get(
-    "trusted_filesystem"
-)
-
-asset = data_source.get_asset(
-    "bancos_parquet"
-)
-
-batch_definition = asset.get_batch_definition(
-    "bancos_batch"
-)
+from constants import path_strings
 
 
-# =========================================================
-# 3. EXPECTATION SUITE
-# =========================================================
+def run() -> bool:
+    """Validate the Trusted `bancos` dataset against the Great Expectations suite."""
 
-suite = gx.ExpectationSuite(
-    name="trusted_bancos_quality"
-)
+    # =========================================================
+    # 1. CARREGAR DATASET
+    # =========================================================
 
+    path = Path(path_strings.trusted_path) / "bancos.parquet"
 
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToBeInSet(
-        column="segmento",
-       value_set=[
-    "S1",
-    "S2",
-    "S3",
-    "S4",
-    "S5",
-]
+    df = pd.read_parquet(path)
+
+    print(f"Bancos carregado: {len(df)} linhas / {len(df.columns)} colunas")
+
+    # =========================================================
+    # 2. GREAT EXPECTATIONS
+    # =========================================================
+
+    context = gx.get_context(mode="ephemeral")
+
+    data_source = context.data_sources.add_pandas(name="bancos_runtime")
+
+    asset = data_source.add_dataframe_asset(name="bancos_dataframe")
+
+    batch_definition = asset.add_batch_definition_whole_dataframe(name="bancos_batch")
+
+    # =========================================================
+    # 3. EXPECTATION SUITE
+    # =========================================================
+
+    suite = gx.ExpectationSuite(name="trusted_bancos_quality")
+
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="segmento",
+            value_set=[
+                "S1",
+                "S2",
+                "S3",
+                "S4",
+                "S5",
+            ],
+        )
     )
-)
 
-
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToNotBeNull(
-        column="cnpj_base"
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToNotBeNull(column="cnpj_base")
     )
-)
 
-
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToMatchRegex(
-        column="cnpj_base",
-        regex=r"^\d{8}$",
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToMatchRegex(
+            column="cnpj_base",
+            regex=r"^\d{8}$",
+        )
     )
-)
 
-
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToNotBeNull(
-        column="nome_instituicao"
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToNotBeNull(column="nome_instituicao")
     )
-)
 
-
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToBeInSet(
-        column="tipo_registro",
-        value_set=["PRUDENCIAL", "INSTITUICAO"],
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="tipo_registro",
+            value_set=["PRUDENCIAL", "INSTITUICAO"],
+        )
     )
-)
+
+    suite = context.suites.add(suite)
+
+    # =========================================================
+    # 4. VALIDATION DEFINITION
+    # =========================================================
+
+    validation_definition = gx.ValidationDefinition(
+        name="validate_trusted_bancos",
+        data=batch_definition,
+        suite=suite,
+    )
+
+    validation_definition = context.validation_definitions.add(validation_definition)
+
+    # =========================================================
+    # 5. EXECUTAR
+    # =========================================================
+
+    result = validation_definition.run(batch_parameters={"dataframe": df})
+
+    # =========================================================
+    # 6. RESULTADO
+    # =========================================================
+
+    print("\n========================================")
+    print(" GREAT EXPECTATIONS — TRUSTED BANCOS")
+    print("========================================")
+
+    print(f"Resultado geral: {'PASSOU' if result.success else 'FALHOU'}")
+    print(f"Expectations avaliadas: {result.statistics['evaluated_expectations']}")
+    print(f"Expectations aprovadas: {result.statistics['successful_expectations']}")
+    print(f"Expectations reprovadas: {result.statistics['unsuccessful_expectations']}")
+    print(f"Taxa de sucesso: {result.statistics['success_percent']:.2f}%")
+
+    return result.success
 
 
-suite = context.suites.add_or_update(suite)
-
-
-# =========================================================
-# 4. VALIDATION DEFINITION
-# =========================================================
-
-validation_definition = gx.ValidationDefinition(
-    name="validate_trusted_bancos",
-    data=batch_definition,
-    suite=suite,
-)
-
-validation_definition = context.validation_definitions.add_or_update(
-    validation_definition
-)
-
-
-# =========================================================
-# 5. EXECUTAR
-# =========================================================
-
-result = validation_definition.run()
-
-
-# =========================================================
-# 6. RESULTADO
-# =========================================================
-
-print("\n========================================")
-print(" GREAT EXPECTATIONS — TRUSTED BANCOS")
-print("========================================")
-
-print(
-    f"Resultado geral: "
-    f"{'PASSOU' if result.success else 'FALHOU'}"
-)
-
-print(
-    f"Expectations avaliadas: "
-    f"{result.statistics['evaluated_expectations']}"
-)
-
-print(
-    f"Expectations aprovadas: "
-    f"{result.statistics['successful_expectations']}"
-)
-
-print(
-    f"Expectations reprovadas: "
-    f"{result.statistics['unsuccessful_expectations']}"
-)
-
-print(
-    f"Taxa de sucesso: "
-    f"{result.statistics['success_percent']:.2f}%"
-)
-
-# =========================================================
-# 8. EXIT CODE PARA FUTURA ORQUESTRAÇÃO
-# =========================================================
-
-if not result.success:
-    sys.exit(1)
-
-sys.exit(0)
+if __name__ == "__main__":
+    sys.exit(0 if run() else 1)
