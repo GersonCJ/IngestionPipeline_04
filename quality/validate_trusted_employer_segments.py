@@ -1,244 +1,236 @@
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 import great_expectations as gx
 
-
-# =========================================================
-# 1. CARREGAR DATASET
-# =========================================================
-
-path = "data/trusted_parquet/employer_segments.parquet"
-
-df = pd.read_parquet(path)
-
-print(
-    f"Employer Segments carregado: "
-    f"{len(df)} linhas / {len(df.columns)} colunas"
-)
+from constants import path_strings
 
 
-# =========================================================
-# 2. GREAT EXPECTATIONS
-# =========================================================
+def run() -> bool:
+    """Validate the Trusted `employer_segments` dataset against the GX suite."""
 
-context = gx.get_context(
-    mode="ephemeral"
-)
+    # =========================================================
+    # 1. CARREGAR DATASET
+    # =========================================================
 
-data_source = context.data_sources.add_pandas(
-    name="employer_segments_runtime"
-)
+    path = Path(path_strings.trusted_path) / "employer_segments.parquet"
 
-asset = data_source.add_dataframe_asset(
-    name="employer_segments_dataframe"
-)
+    df = pd.read_parquet(path)
 
-batch_definition = asset.add_batch_definition_whole_dataframe(
-    name="employer_segments_batch"
-)
-
-
-# =========================================================
-# 3. EXPECTATION SUITE
-# =========================================================
-
-suite = gx.ExpectationSuite(
-    name="trusted_employer_segments_quality"
-)
-
-
-# ---------------------------------------------------------
-# Estrutura geral
-# ---------------------------------------------------------
-
-suite.add_expectation(
-    gx.expectations.ExpectTableRowCountToEqual(
-        value=34
+    print(
+        f"Employer Segments carregado: "
+        f"{len(df)} linhas / {len(df.columns)} colunas"
     )
-)
 
+    # =========================================================
+    # 2. GREAT EXPECTATIONS
+    # =========================================================
 
-# ---------------------------------------------------------
-# Campos obrigatórios
-# ---------------------------------------------------------
-
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToNotBeNull(
-        column="employer_name"
+    context = gx.get_context(
+        mode="ephemeral"
     )
-)
 
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToNotBeNull(
-        column="nome_instituicao"
+    data_source = context.data_sources.add_pandas(
+        name="employer_segments_runtime"
     )
-)
 
-
-# ---------------------------------------------------------
-# Segmentação bancária
-# ---------------------------------------------------------
-
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToBeInSet(
-        column="segmento",
-        value_set=[
-            "S1",
-            "S2",
-            "S3",
-            "S4",
-            "S5",
-        ],
+    asset = data_source.add_dataframe_asset(
+        name="employer_segments_dataframe"
     )
-)
 
+    batch_definition = asset.add_batch_definition_whole_dataframe(
+        name="employer_segments_batch"
+    )
 
-# ---------------------------------------------------------
-# Contadores
-# ---------------------------------------------------------
+    # =========================================================
+    # 3. EXPECTATION SUITE
+    # =========================================================
 
-for column in [
-    "reviews_count",
-    "culture_count",
-    "salaries_count",
-    "benefits_count",
-]:
+    suite = gx.ExpectationSuite(
+        name="trusted_employer_segments_quality"
+    )
+
+    # ---------------------------------------------------------
+    # Estrutura geral
+    # ---------------------------------------------------------
+
     suite.add_expectation(
-        gx.expectations.ExpectColumnValuesToBeBetween(
-            column=column,
-            min_value=0,
+        gx.expectations.ExpectTableRowCountToEqual(
+            value=34
         )
     )
 
+    # ---------------------------------------------------------
+    # Campos obrigatórios
+    # ---------------------------------------------------------
 
-# ---------------------------------------------------------
-# Notas
-# ---------------------------------------------------------
-
-for column in [
-    "nota_geral",
-    "nota_cultura_valores",
-    "nota_diversidade_inclusao",
-    "nota_qualidade_vida",
-    "nota_alta_lideranca",
-    "nota_remuneracao_beneficios",
-    "nota_oportunidades_carreira",
-]:
     suite.add_expectation(
-        gx.expectations.ExpectColumnValuesToBeBetween(
-            column=column,
-            min_value=0,
-            max_value=5,
+        gx.expectations.ExpectColumnValuesToNotBeNull(
+            column="employer_name"
         )
     )
 
-
-# ---------------------------------------------------------
-# Percentuais
-# ---------------------------------------------------------
-
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToBeBetween(
-        column="pct_recomendam",
-        min_value=0,
-        max_value=100,
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToNotBeNull(
+            column="nome_instituicao"
+        )
     )
-)
 
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToBeBetween(
-        column="pct_perspectiva_positiva",
-        min_value=0,
-        max_value=100,
+    # ---------------------------------------------------------
+    # Segmentação bancária
+    # ---------------------------------------------------------
+
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="segmento",
+            value_set=[
+                "S1",
+                "S2",
+                "S3",
+                "S4",
+                "S5",
+            ],
+        )
     )
-)
 
-suite.add_expectation(
-    gx.expectations.ExpectColumnValuesToBeBetween(
-        column="match_percent",
-        min_value=0,
-        max_value=100,
+    # ---------------------------------------------------------
+    # Contadores
+    # ---------------------------------------------------------
+
+    for column in [
+        "reviews_count",
+        "culture_count",
+        "salaries_count",
+        "benefits_count",
+    ]:
+        suite.add_expectation(
+            gx.expectations.ExpectColumnValuesToBeBetween(
+                column=column,
+                min_value=0,
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Notas
+    # ---------------------------------------------------------
+
+    for column in [
+        "nota_geral",
+        "nota_cultura_valores",
+        "nota_diversidade_inclusao",
+        "nota_qualidade_vida",
+        "nota_alta_lideranca",
+        "nota_remuneracao_beneficios",
+        "nota_oportunidades_carreira",
+    ]:
+        suite.add_expectation(
+            gx.expectations.ExpectColumnValuesToBeBetween(
+                column=column,
+                min_value=0,
+                max_value=5,
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Percentuais
+    # ---------------------------------------------------------
+
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="pct_recomendam",
+            min_value=0,
+            max_value=100,
+        )
     )
-)
 
-
-# =========================================================
-# 4. REGISTRAR SUITE
-# =========================================================
-
-suite = context.suites.add(
-    suite
-)
-
-
-# =========================================================
-# 5. VALIDATION DEFINITION
-# =========================================================
-
-validation_definition = gx.ValidationDefinition(
-    name="validate_trusted_employer_segments",
-    data=batch_definition,
-    suite=suite,
-)
-
-validation_definition = (
-    context.validation_definitions.add(
-        validation_definition
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="pct_perspectiva_positiva",
+            min_value=0,
+            max_value=100,
+        )
     )
-)
+
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="match_percent",
+            min_value=0,
+            max_value=100,
+        )
+    )
+
+    # =========================================================
+    # 4. REGISTRAR SUITE
+    # =========================================================
+
+    suite = context.suites.add(
+        suite
+    )
+
+    # =========================================================
+    # 5. VALIDATION DEFINITION
+    # =========================================================
+
+    validation_definition = gx.ValidationDefinition(
+        name="validate_trusted_employer_segments",
+        data=batch_definition,
+        suite=suite,
+    )
+
+    validation_definition = (
+        context.validation_definitions.add(
+            validation_definition
+        )
+    )
+
+    # =========================================================
+    # 6. EXECUTAR
+    # =========================================================
+
+    result = validation_definition.run(
+        batch_parameters={
+            "dataframe": df
+        }
+    )
+
+    # =========================================================
+    # 7. RESULTADO
+    # =========================================================
+
+    print("\n===============================================")
+    print(" GREAT EXPECTATIONS — EMPLOYER SEGMENTS")
+    print("===============================================")
+
+    print(
+        f"Resultado geral: "
+        f"{'PASSOU' if result.success else 'FALHOU'}"
+    )
+
+    print(
+        f"Expectations avaliadas: "
+        f"{result.statistics['evaluated_expectations']}"
+    )
+
+    print(
+        f"Expectations aprovadas: "
+        f"{result.statistics['successful_expectations']}"
+    )
+
+    print(
+        f"Expectations reprovadas: "
+        f"{result.statistics['unsuccessful_expectations']}"
+    )
+
+    print(
+        f"Taxa de sucesso: "
+        f"{result.statistics['success_percent']:.2f}%"
+    )
+
+    return result.success
 
 
-# =========================================================
-# 6. EXECUTAR
-# =========================================================
-
-result = validation_definition.run(
-    batch_parameters={
-        "dataframe": df
-    }
-)
-
-
-# =========================================================
-# 7. RESULTADO
-# =========================================================
-
-print("\n===============================================")
-print(" GREAT EXPECTATIONS — EMPLOYER SEGMENTS")
-print("===============================================")
-
-print(
-    f"Resultado geral: "
-    f"{'PASSOU' if result.success else 'FALHOU'}"
-)
-
-print(
-    f"Expectations avaliadas: "
-    f"{result.statistics['evaluated_expectations']}"
-)
-
-print(
-    f"Expectations aprovadas: "
-    f"{result.statistics['successful_expectations']}"
-)
-
-print(
-    f"Expectations reprovadas: "
-    f"{result.statistics['unsuccessful_expectations']}"
-)
-
-print(
-    f"Taxa de sucesso: "
-    f"{result.statistics['success_percent']:.2f}%"
-)
-
-
-# =========================================================
-# 8. EXIT CODE PARA FUTURA ORQUESTRAÇÃO
-# =========================================================
-
-if not result.success:
-    sys.exit(1)
-
-sys.exit(0)
+if __name__ == "__main__":
+    sys.exit(0 if run() else 1)
