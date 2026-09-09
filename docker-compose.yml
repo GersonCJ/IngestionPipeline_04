@@ -1,40 +1,51 @@
+# ============================================================================
+# Stack do pipeline medalhao Atv4
+#
+#   Airflow 3 (LocalExecutor) orquestra, via DockerOperator, containers
+#   efemeros construidos a partir das imagens `ingestion_atv4` (Python +
+#   Pydantic + Great Expectations) e `dbt_atv4` (dbt-postgres). O OpenMetadata
+#   cataloga os schemas do Postgres.
+#
+#   Subir:   docker compose --profile build build && docker compose up -d
+#   UIs:     Airflow 8081 | OpenMetadata 8585 | dbt docs 8181 | GE docs 8182
+# ============================================================================
+
 x-airflow-common:
   &airflow-common
-  image: customized-airflow
-  build:
-    context: .
-    dockerfile: Dockerfile.airflow
+  image: apache/airflow:3.3.1
+  # A imagem regular ja traz os providers `docker` e `fab` (extras do build
+  # oficial), entao nao ha Dockerfile proprio nem _PIP_ADDITIONAL_REQUIREMENTS.
   env_file:
     - ${ENV_FILE_PATH:-.env}
   environment:
     &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    # O default da 3.3 e o SimpleAuthManager; com ele o entrypoint pula a
+    # criacao do usuario web em silencio. Manter o FAB explicito.
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@postgres-db/${AIRFLOW_DB}
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@postgres-db/${AIRFLOW_DB}
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
     AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    # Sem esta variavel o scheduler procura a Execution API em localhost:8080
+    # dentro do proprio container e as tasks ficam presas em `queued` sem erro.
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__API__BASE_URL: 'http://localhost:8081'
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:-airflow_jwt_secret}
     AIRFLOW__API_AUTH__JWT_ISSUER: ${AIRFLOW__API_AUTH__JWT_ISSUER:-airflow}
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-    _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-docker openmetadata-managed-apis~=1.3.2"
-    
+    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    _PIP_ADDITIONAL_REQUIREMENTS: ''
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags:z
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs:z
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config:z
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins:z
+    # A DAG fala com o daemon por aqui para criar os containers irmaos.
     - /var/run/docker.sock:/var/run/docker.sock:z
-    - ./data/raw_parquet_lab2:/app/data/raw:z
-    - gx_docs:/app/gx:z
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
-    redis:
-      condition: service_healthy
     postgres-db:
       condition: service_healthy
   networks:
@@ -43,24 +54,64 @@ x-airflow-common:
     - front_network
 
 
+x-openmetadata-common-env:
+  &openmetadata-common-env
+  # ---- servidor
+  OPENMETADATA_CLUSTER_NAME: openmetadata
+  SERVER_PORT: 8585
+  SERVER_ADMIN_PORT: 8586
+  SERVER_HOST_API_URL: http://openmetadata-server:8585/api
+  LOG_LEVEL: INFO
+  MIGRATION_LIMIT_PARAM: 1200
+  # ---- banco (reaproveita o Postgres do pipeline, database proprio)
+  DB_DRIVER_CLASS: org.postgresql.Driver
+  DB_SCHEME: postgresql
+  DB_PARAMS: "allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+  DB_HOST: postgres-db
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:-postgres}
+  DB_USER_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+  # Na linha 2.x a variavel e OM_DATABASE (era DB_DATABASE ate a 1.x).
+  OM_DATABASE: openmetadata_db
+  # ---- indice de busca (obrigatorio: o server nao sobe sem ele)
+  SEARCH_TYPE: elasticsearch
+  ELASTICSEARCH_HOST: elasticsearch
+  ELASTICSEARCH_PORT: 9200
+  ELASTICSEARCH_SCHEME: http
+  ELASTICSEARCH_USER: ""
+  ELASTICSEARCH_PASSWORD: ""
+  ELASTICSEARCH_INDEX_MAPPING_LANG: EN
+  # ---- autorizacao / autenticacao: modo basic, sem SSO (dev)
+  AUTHORIZER_CLASS_NAME: org.openmetadata.service.security.DefaultAuthorizer
+  AUTHORIZER_REQUEST_FILTER: org.openmetadata.service.security.JwtFilter
+  AUTHORIZER_ADMIN_PRINCIPALS: "[admin]"
+  AUTHORIZER_ALLOWED_REGISTRATION_DOMAIN: '["all"]'
+  AUTHORIZER_INGESTION_PRINCIPALS: "[ingestion-bot]"
+  AUTHORIZER_PRINCIPAL_DOMAIN: "open-metadata.org"
+  AUTHORIZER_ENFORCE_PRINCIPAL_DOMAIN: "false"
+  AUTHORIZER_ENABLE_SECURE_SOCKET: "false"
+  AUTHENTICATION_PROVIDER: basic
+  AUTHENTICATION_PUBLIC_KEYS: "[http://localhost:8585/api/v1/system/config/jwks]"
+  AUTHENTICATION_ENABLE_SELF_SIGNUP: "true"
+  AUTHENTICATION_JWT_PRINCIPAL_CLAIMS: "[email,preferred_username,sub]"
+  RSA_PUBLIC_KEY_FILE_PATH: "./conf/public_key.der"
+  RSA_PRIVATE_KEY_FILE_PATH: "./conf/private_key.der"
+  JWT_ISSUER: "open-metadata.org"
+  JWT_KEY_ID: "Gb389a-9f76-gdjs-a92j-0242bk94356"
+  # A ingestao e uma task da nossa DAG, nao do managed-apis do OpenMetadata.
+  PIPELINE_SERVICE_CLIENT_ENABLED: "false"
+  SECRET_MANAGER: db
+  FERNET_KEY: ${OM_FERNET_KEY:-jJ/9sz0g0OHxsfxOoSfdFdmk3ysNmPRnH3TUAbz3IHA=}
+  OPENMETADATA_HEAP_OPTS: "-Xmx768m -Xms512m"
+
+
 services:
 
-  app:
-    image: ingestion_atv4
-    build: .
-    container_name: module3_ingestion
-    command: uv run main.py
-    volumes:
-      - ./data/raw_free:/app/data/raw:z
-      - ./data/trusted_parquet:/app/trusted:z
-      - ./data/delivered_gold:/app/delivered:z
-    depends_on:
-      - postgres-db
-    networks:
-      - private_network
-
+  # ------------------------------------------------------------------ dados
   postgres-db:
-    image: postgres
+    # Tag fixa: o `postgres` sem tag hoje resolve para 18.x, que mudou PGDATA e
+    # o ponto de VOLUME. O init.sql deste projeto e um dump da 17.5.
+    image: postgres:17.11
     container_name: postgres_atv4
     restart: always
     environment:
@@ -68,7 +119,9 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     volumes:
-      - data_sql:/var/lib/postgresql:z
+      - data_sql:/var/lib/postgresql/data:z
+      # Roda uma unica vez, em volume vazio: cria os schemas do pipeline e os
+      # databases do Airflow e do OpenMetadata.
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${DB_USER}", "-d", "${DB_NAME}"]
@@ -78,70 +131,69 @@ services:
     networks:
       - private_network
 
-  openmetadata-server:
-    image: openmetadata/server:1.3.2
-    container_name: openmetadata_server
+  # ----------------------------------------------------------- OpenMetadata
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.0
+    container_name: openmetadata_elasticsearch
     environment:
-      SERVER_HOST_ENV: "0.0.0.0"
-      DB_DRIVER_CLASS: "org.postgresql.Driver"
-      DB_SCHEME: "postgresql"
-      DB_USER: ${DB_USER:-postgres}
-      DB_USER_PASSWORD: ${DB_PASSWORD:-postgrespassword}
-      DB_HOST: postgres-db
-      DB_PORT: 5432
-      DB_DATABASE: openmetadata_db
-      PIPELINE_SERVICE_CLIENT_CLASS: "org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient"
-      PIPELINE_SERVICE_CLIENT_ENDPOINT: "http://airflow-apiserver:8080"
-      PIPELINE_SERVICE_CLIENT_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
-      PIPELINE_SERVICE_CLIENT_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-    ports:
-      - "8585:8585"
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE 'green|yellow'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    volumes:
+      - es_data:/usr/share/elasticsearch/data:z
+    networks:
+      - private_network
+
+  # Bootstrap do schema do OpenMetadata. O server so sobe depois que este
+  # container termina com exit 0.
+  execute-migrate-all:
+    image: docker.getcollate.io/openmetadata/server:2.0.1
+    container_name: openmetadata_migrate
+    command: "./bootstrap/openmetadata-ops.sh migrate"
+    environment: *openmetadata-common-env
     depends_on:
       postgres-db:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - private_network
+
+  openmetadata-server:
+    image: docker.getcollate.io/openmetadata/server:2.0.1
+    container_name: openmetadata_server
+    restart: always
+    environment: *openmetadata-common-env
+    ports:
+      - "8585:8585"
+      - "8586:8586"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      execute-migrate-all:
+        condition: service_completed_successfully
+    healthcheck:
+      # A imagem do OpenMetadata nao traz curl — so wget. Com curl aqui o
+      # healthcheck falha sempre, e o servidor aparece unhealthy mesmo
+      # respondendo 200.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8586/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
     networks:
       - private_network
       - front_network
 
-  redis:
-    image: redis:7.2-bookworm
-    expose:
-      - 6379
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 30s
-      retries: 50
-      start_period: 30s
-    restart: always
-    networks: *airflow-networks
-  
-  elt_transformation:
-    build: 
-      context: .
-      dockerfile: Dockerfile.dbt
-    container_name: dbt_atv4
-    working_dir: /usr/app/dbt_atv4_project
-    entrypoint: [""]
-    command: ["sleep", "infinity"]
-    env_file: .env
-    volumes:
-      - ./elt_dbt_atv4:/usr/app/dbt_atv4_project
-      - ./profiles:/root/.dbt
-    depends_on:
-      postgres-db:
-        condition: service_healthy
-    networks:
-      - private_network
-
-  dbt-docs:
-    image: nginx:alpine
-    container_name: static_dbt
-    volumes:
-      - ./elt_dbt_atv4/target:/usr/share/nginx/html:ro
-    ports:
-      - "8181:80"
-
+  # --------------------------------------------------------------- Airflow
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
@@ -200,28 +252,18 @@ services:
         echo "Airflow version:"
         /entrypoint airflow version
         echo
-        echo "Files in shared volumes:"
-        echo
-        ls -la /opt/airflow/{logs,dags,plugins,config}
-        echo
         echo "Running airflow config list to create default config file if missing."
         echo
         /entrypoint airflow config list >/dev/null
         echo
-        echo "Files in shared volumes:"
-        echo
-        ls -la /opt/airflow/{logs,dags,plugins,config}
-        echo
         echo "Change ownership of files in /opt/airflow to ${AIRFLOW_UID}:0"
         echo
-        chown -R "${AIRFLOW_UID}:0" /opt/airflow/
-        echo
-        echo "Change ownership of files in shared volumes to ${AIRFLOW_UID}:0"
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/
+        chown -v -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/{logs,dags,plugins,config}
         echo
         echo "Files in shared volumes:"
         echo
         ls -la /opt/airflow/{logs,dags,plugins,config}
-
     # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env
@@ -229,22 +271,21 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-    user: "0:0"  
-
-# ----------------- Airflow Services
+    user: "0:0"
 
   airflow-apiserver:
     <<: *airflow-common
     command: api-server
-    ports: 
+    ports:
       - "8081:8080"
     restart: always
     healthcheck:
-      # We check 8080 because that is the internal port inside the container
+      # 8080 e a porta interna do container; 8081 e so a publicacao no host.
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health').getcode()"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -254,8 +295,16 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
+    # Com LocalExecutor e o scheduler que executa as tasks, entao e ele quem
+    # precisa abrir /var/run/docker.sock. No Docker Desktop o socket aparece
+    # como root:root 0660 dentro do container, inacessivel para o uid 50000.
+    user: "0:0"
     healthcheck:
-      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob"]
+      # Como o servico roda como root e o Airflow esta instalado no user-site do
+      # usuario `airflow` (/home/airflow/.local/...), o comando precisa ser
+      # executado como ele — senao o healthcheck falha com ModuleNotFoundError
+      # mesmo com o scheduler perfeitamente saudavel.
+      test: ["CMD-SHELL", "su airflow -c 'airflow jobs check --job-type SchedulerJob'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -269,50 +318,10 @@ services:
 
   airflow-dag-processor:
     <<: *airflow-common
+    # No Airflow 3 o parsing de DAGs saiu do scheduler e virou processo proprio.
     command: dag-processor
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-    networks: *airflow-networks
-
-  airflow-worker:
-    <<: *airflow-common
-    command: celery worker
-    user: "0:0"
-    entrypoint: /bin/bash -c "mkdir -p /opt/airflow/logs && chown -R 50000:0 /opt/airflow/logs && chmod -R 775 /opt/airflow/logs && chown -R 50000:0 /app/gx && su airflow -c '/home/airflow/.local/bin/airflow celery worker'"
-    healthcheck:
-      # yamllint disable rule:line-length
-      test: ["CMD-SHELL", '/home/airflow/.local/bin/celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || /home/airflow/.local/bin/celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    environment:
-      <<: *airflow-common-env
-      DUMB_INIT_SETSID: "0"
-      AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: "airflow-worker"
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-apiserver:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-    networks: *airflow-networks
-
-  airflow-triggerer:
-    <<: *airflow-common
-    command: triggerer
-    healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -341,24 +350,64 @@ services:
         condition: service_completed_successfully
     networks: *airflow-networks
 
-  flower:
-    <<: *airflow-common
-    command: celery flower
-    profiles:
-      - flower
+  # --------------------------------------------------------- documentacao
+  dbt-docs:
+    image: nginx:alpine
+    container_name: static_dbt
+    volumes:
+      - ./elt_dbt_atv4/target:/usr/share/nginx/html:ro
     ports:
-      - "5555:5555"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
+      - "8181:80"
+    networks:
+      - front_network
+
+  gx-docs:
+    image: nginx:alpine
+    container_name: static_gx
+    volumes:
+      # Data Docs escritos pelas tasks de qualidade no volume compartilhado.
+      - gx_docs:/usr/share/nginx/html:ro
+    ports:
+      - "8182:80"
+    networks:
+      - front_network
+
+  # ----------------------------------------------------- imagens das tasks
+  # Estes dois servicos existem apenas para construir as imagens que a DAG
+  # instancia (`docker compose --profile build build`). Nao sobem com `up`.
+  app:
+    image: ingestion_atv4
+    build: .
+    profiles:
+      - build
+    command: uv run main.py
+    env_file:
+      - ${ENV_FILE_PATH:-.env}
+    volumes:
+      - ./data/raw_free:/app/data/raw:z
+      - ./data/trusted_parquet:/app/trusted:z
+      - ./data/delivered_gold:/app/delivered:z
+      - gx_docs:/app/gx:z
+    networks:
+      - private_network
+
+  elt_transformation:
+    image: dbt_atv4
+    build:
+      context: .
+      dockerfile: Dockerfile.dbt
+    profiles:
+      - build
+    working_dir: /usr/app/dbt_atv4_project
+    entrypoint: [""]
+    command: ["dbt", "run"]
+    env_file:
+      - ${ENV_FILE_PATH:-.env}
+    volumes:
+      - ./elt_dbt_atv4:/usr/app/dbt_atv4_project:z
+    networks:
+      - private_network
+
 
 volumes:
 
@@ -366,13 +415,21 @@ volumes:
     name: "data_sql"
     labels:
       description: "Postgresql persistent data storage"
+  es_data:
+    name: "es_data"
+    labels:
+      description: "Elasticsearch index storage for OpenMetadata"
   gx_docs:
     name: "gx_docs"
+    labels:
+      description: "Great Expectations data context and data docs"
 
 networks:
-  private_network: 
+  # Nome fixo: o `network_mode` do DockerOperator precisa do nome real da rede,
+  # e sem `name:` ele dependeria do prefixo do projeto (o nome da pasta).
+  private_network:
+    name: atv4_private
     driver: bridge
   front_network:
+    name: atv4_front
     driver: bridge
-
-    

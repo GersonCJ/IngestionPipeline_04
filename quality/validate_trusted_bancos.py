@@ -7,6 +7,7 @@ import pandas as pd
 import great_expectations as gx
 
 from constants import path_strings
+from quality import gx_context
 
 
 def run() -> bool:
@@ -26,13 +27,9 @@ def run() -> bool:
     # 2. GREAT EXPECTATIONS
     # =========================================================
 
-    context = gx.get_context(mode="ephemeral")
+    context = gx_context.build_context()
 
-    data_source = context.data_sources.add_pandas(name="bancos_runtime")
-
-    asset = data_source.add_dataframe_asset(name="bancos_dataframe")
-
-    batch_definition = asset.add_batch_definition_whole_dataframe(name="bancos_batch")
+    batch_definition = gx_context.batch_definition_for(context, "bancos")
 
     # =========================================================
     # 3. EXPECTATION SUITE
@@ -75,41 +72,25 @@ def run() -> bool:
         )
     )
 
-    suite = context.suites.add(suite)
-
     # =========================================================
-    # 4. VALIDATION DEFINITION
+    # 4. EXECUTAR
     # =========================================================
 
-    validation_definition = gx.ValidationDefinition(
+    result = gx_context.run_validation(
+        context,
         name="validate_trusted_bancos",
-        data=batch_definition,
         suite=suite,
+        batch_definition=batch_definition,
+        df=df,
     )
 
-    validation_definition = context.validation_definitions.add(validation_definition)
-
     # =========================================================
-    # 5. EXECUTAR
+    # 5. RESULTADO
     # =========================================================
 
-    result = validation_definition.run(batch_parameters={"dataframe": df})
+    gx_context.publish_docs(context)
 
-    # =========================================================
-    # 6. RESULTADO
-    # =========================================================
-
-    print("\n========================================")
-    print(" GREAT EXPECTATIONS — TRUSTED BANCOS")
-    print("========================================")
-
-    print(f"Resultado geral: {'PASSOU' if result.success else 'FALHOU'}")
-    print(f"Expectations avaliadas: {result.statistics['evaluated_expectations']}")
-    print(f"Expectations aprovadas: {result.statistics['successful_expectations']}")
-    print(f"Expectations reprovadas: {result.statistics['unsuccessful_expectations']}")
-    print(f"Taxa de sucesso: {result.statistics['success_percent']:.2f}%")
-
-    return result.success
+    return gx_context.report("TRUSTED BANCOS", result)
 
 
 if __name__ == "__main__":
