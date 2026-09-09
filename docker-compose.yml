@@ -380,7 +380,9 @@ services:
     build: .
     profiles:
       - build
-    command: uv run main.py
+    # Sem CMD/ENTRYPOINT na imagem: todo uso deste servico — pelo DockerOperator
+    # do Airflow ou por `docker compose run --rm app <comando>` a mao — informa
+    # o comando explicitamente. Ver a secao "Sem orquestrador" do README.
     env_file:
       - ${ENV_FILE_PATH:-.env}
     volumes:
