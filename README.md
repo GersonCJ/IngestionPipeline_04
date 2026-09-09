@@ -82,13 +82,19 @@ Com tudo de pé, dispare a DAG `atv4_medallion_end_to_end` pela UI do Airflow.
 
 ### Sem orquestrador
 
-O pipeline continua executável à mão, uma etapa por vez:
+O pipeline continua executável à mão, uma etapa por vez — os mesmos
+subcomandos de `src/cli.py` que o Airflow chama, só que disparados
+diretamente:
 
 ```bash
-docker compose --profile build run --rm app                                  # raw → trusted → GE → Postgres
-docker compose --profile build run --rm app uv run python -m src.cli export  # delivery → Parquet
+docker compose --profile build run --rm app uv run python -m src.cli transform         # raw → trusted
+docker compose --profile build run --rm app uv run python -m src.cli quality-trusted   # GE — gate trusted
+docker compose --profile build run --rm app uv run python -m src.cli load              # trusted → Postgres
 docker compose --profile build run --rm elt_transformation dbt run
 docker compose --profile build run --rm elt_transformation dbt test
+docker compose --profile build run --rm app uv run python -m src.cli export            # delivery → Parquet
+docker compose --profile build run --rm app uv run python -m src.cli quality-delivery  # GE — gate delivery
+docker compose --profile build run --rm app uv run python -m src.cli catalog           # OpenMetadata (precisa de OM_JWT_TOKEN)
 ```
 
 ---
@@ -99,7 +105,7 @@ docker compose --profile build run --rm elt_transformation dbt test
 
 **A etapa de extração foi deliberadamente pulada nesta execução**: os arquivos originais já estavam disponíveis
 localmente em `data/raw_free/`, então o pipeline parte direto da validação
-(`main.py` lê direto de `bronze_path/{Dataset}/...`).
+(`src/cli.py:transform` lê direto de `bronze_path/{Dataset}/...`).
 
 ### Schemas — validação com Pydantic v2
 
@@ -359,8 +365,10 @@ disco), depois o gate de qualidade, e só então o `load_dataset` por tabela
 `transform` — as outras três fontes são um arquivo por tabela, então uma
 chamada basta.
 
-`main.py` continua existindo como atalho para rodar `transform`,
-`quality-trusted` e `load` de uma vez, sem orquestrador.
+Não há mais um script que encadeie tudo num processo só: rodar sem
+orquestrador significa chamar estes subcomandos um a um (ver [Sem
+orquestrador](#sem-orquestrador)) — os mesmos que o Airflow chama, um
+container por etapa.
 
 ---
 
@@ -519,8 +527,9 @@ sources:
 ```
 
 Os nomes de tabela aqui têm que bater **exatamente** com o que
-`load_dataset(..., table_name, ...)` escreveu em `main.py` — uma divergência
-vira `relation does not exist` só na hora do `dbt run`, nunca antes.
+`load_dataset(..., table_name, ...)` escreveu no subcomando `load` de
+`src/cli.py` — uma divergência vira `relation does not exist` só na hora do
+`dbt run`, nunca antes.
 
 ### `stg_bancos.sql`
 

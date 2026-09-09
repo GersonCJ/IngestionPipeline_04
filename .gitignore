@@ -13,9 +13,13 @@ wheels/
 # md
 CLAUDE.md
 
-# Artefatos gerados pelo pipeline (reescritos a cada execucao da DAG)
-data/trusted_parquet/
-data/delivered_gold/
+# Artefatos gerados pelo pipeline (reescritos a cada execucao da DAG).
+# O .gitkeep mantem o diretorio existindo apos um clone/checkout — sem ele o
+# DockerOperator falha ao montar um bind mount cuja origem nao existe ainda.
+data/trusted_parquet/*
+!data/trusted_parquet/.gitkeep
+data/delivered_gold/*
+!data/delivered_gold/.gitkeep
 elt_dbt_atv4/target/
 elt_dbt_atv4/logs/
 

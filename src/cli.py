@@ -1,10 +1,14 @@
 """Etapas do pipeline expostas como subcomandos.
 
-O `main.py` executa a cadeia inteira num processo só, o que serve para rodar o
-pipeline a mão. O Airflow precisa do oposto: cada etapa como um processo
-proprio, para ter log, retry e status individuais no grafo da DAG. Este modulo
-e essa fronteira — ele nao reimplementa nada, so isola os passos que ja existem
-em `src.treatment`, `src.load` e `quality/`.
+O Airflow precisa de cada etapa do pipeline como um processo proprio, para ter
+log, retry e status individuais no grafo da DAG (`dags/atv4_medallion_end_to_end.py`,
+via DockerOperator). Este modulo e essa fronteira — ele nao reimplementa nada,
+so isola os passos que ja existem em `src.treatment`, `src.load` e `quality/`,
+um subcomando por etapa.
+
+E tambem o unico jeito de rodar o pipeline a mao, sem orquestrador: nao ha mais
+um script que encadeie tudo num processo so (ver secao "Sem orquestrador" do
+README) — cada etapa roda isolada, exatamente como o Airflow a chama.
 
     uv run python -m src.cli transform
     uv run python -m src.cli quality-trusted
