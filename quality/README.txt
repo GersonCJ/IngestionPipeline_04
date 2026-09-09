@@ -6,7 +6,7 @@ Esta camada implementa validações de qualidade de dados para o pipeline desenv
 
 As validações cobrem as camadas Trusted e Delivery/Gold e foram estruturadas para funcionar de forma independente da ferramenta de orquestração.
 
-A solução foi preparada para futura integração com Apache Airflow por meio de exit codes do processo.
+A solução é independente do orquestrador — cada validação devolve exit code — e está integrada ao Apache Airflow como gates da DAG do pipeline.
 
 ---
 
@@ -222,8 +222,7 @@ Também foi validada com sucesso a reconciliação entre Complaints Trusted e De
 ```text
 quality/
 │
-├── Dockerfile
-├── requirements.txt
+├── gx_context.py
 │
 ├── explore_bancos.py
 ├── explore_complaints.py
@@ -238,35 +237,61 @@ quality/
 ├── validate_delivery.py
 │
 ├── run_quality.py
-└── README.md
+└── README.txt
 ```
 
 Os scripts `explore_*.py` foram utilizados para profiling e entendimento dos datasets antes da criação das regras de qualidade.
 
-Os scripts `validate_*.py` executam as validações de cada domínio.
+Os scripts `validate_*.py` executam as validações de cada domínio. Cada um expõe uma função `run() -> bool` e também funciona como script isolado, retornando exit code.
+
+O arquivo `gx_context.py` centraliza o Data Context compartilhado: abertura do contexto persistente em `/app/gx`, criação idempotente de data source, asset e batch definition, execução da validation definition e geração dos Data Docs.
 
 O arquivo `run_quality.py` atua como executor central de todas as validações.
 
 ---
 
-## Execução
+## Data Context persistente
 
-### Construir a imagem Docker
+O contexto do Great Expectations é file-based, gravado no volume `gx_docs`, montado em `/app/gx`.
 
-Na raiz do projeto:
+Com isso, cada execução acumula histórico e os Data Docs ficam navegáveis em:
 
-```bash
-docker build -f quality/Dockerfile -t ingestion-gx .
+```text
+http://localhost:8182
 ```
+
+Contexto persistente exige idempotência: `add_pandas`, `add_dataframe_asset` e `add_batch_definition_whole_dataframe` levantam erro quando o objeto já existe, o que só aparece a partir da segunda execução.
+
+Por isso todo acesso em `gx_context.py` busca o objeto primeiro e só cria no `LookupError`.
 
 ---
 
-### Executar todas as validações
+## Execução
 
-No PowerShell:
+### Pela DAG do Airflow
 
-```powershell
-docker run --rm -v "${PWD}:/workspace" -w /workspace ingestion-gx python quality/run_quality.py
+As validações são duas tasks da DAG `atv4_medallion_end_to_end`:
+
+```text
+gx_trusted     — entre a escrita dos Parquet e a carga no Postgres
+gx_delivery    — depois do export da camada Gold
+```
+
+Ambas rodam na imagem `ingestion_atv4`, via `src/cli.py`.
+
+### Manualmente
+
+Todas as camadas de uma vez:
+
+```bash
+docker compose --profile build run --rm app uv run python quality/run_quality.py
+```
+
+Ou uma camada por vez, do mesmo jeito que o Airflow chama:
+
+```bash
+docker compose --profile build run --rm app uv run python -m src.cli quality-trusted
+docker compose --profile build run --rm app uv run python -m src.cli quality-delivery
 ```
 
 ---
@@ -359,18 +384,17 @@ Após o teste, a regra original foi restaurada e todas as validações voltaram 
 
 ---
 
-## Preparação para orquestração
+## Orquestração
 
-A camada de qualidade foi desenvolvida de forma independente da ferramenta de orquestração.
+A camada de qualidade foi desenvolvida de forma independente da ferramenta de orquestração: cada validação expõe `run() -> bool` e cada script devolve exit code.
 
-O executor:
+Essa integração está implementada. No Apache Airflow, a DAG `atv4_medallion_end_to_end` executa as validações como duas tasks próprias, através de `src/cli.py`:
 
 ```text
-quality/run_quality.py
+raw_to_trusted → gx_trusted → load_postgres → dbt_run → dbt_test
+    → dbt_docs_generate → export_delivery → gx_delivery → openmetadata_catalog
 ```
 
-já está preparado para ser chamado futuramente pelo Apache Airflow ou outro orquestrador.
+Os gates são duros. Quando `gx_trusted` reprova, a etapa levanta exceção, a task falha e todas as tasks seguintes ficam em `upstream_failed`. Na prática, isso significa que dado reprovado não chega ao Postgres nem à camada Delivery.
 
-O orquestrador poderá utilizar o exit code do processo para decidir se o pipeline deve prosseguir ou ser interrompido.
-
-Nesta implementação, a integração com Airflow ainda não foi realizada.
+O mesmo comportamento vale para `gx_delivery`, com a diferença de que ali os dados já foram materializados: a falha sinaliza o problema e impede que o catálogo seja publicado sobre uma Gold inválida.

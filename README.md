@@ -3,7 +3,9 @@
 Pipeline medalhão (**raw → trusted → delivery**) para o PECE-POLI Módulo 3.
 Ingestão e limpeza técnica em **Python** (pydantic v2), transformação e regra de
 negócio em **dbt**, base final em **Postgres**, com export final também em
-**Parquet** em disco.
+**Parquet** em disco. A qualidade de cada camada é validada com **Great
+Expectations**, o catálogo de dados vive no **OpenMetadata** e o encadeamento
+inteiro é orquestrado pelo **Apache Airflow**.
 
 ---
 
@@ -15,25 +17,78 @@ data/raw_free/            fontes originais (Bancos, Complains, Empregados)
         ▼  Python — src/treatment.py + src/schemas.py (pydantic v2)
 data/trusted_parquet/     trusted, schema explícito, quarentena em _rejected/
         │
+        ▼  Great Expectations — quality gate da camada Trusted
+        │
         ▼  src/load.py → Postgres schema trusted_atv4
 Postgres trusted_atv4
         │
-        ▼  dbt — elt_dbt_atv4/models/
+        ▼  dbt — elt_dbt_atv4/models/ (dbt run + dbt test)
 Postgres delivery_atv4    staging views + mart final
         │
         ▼  export_delivery.py
 data/delivered_gold/      delivery também em Parquet, exigência do enunciado
+        │
+        ▼  Great Expectations — quality gate da camada Delivery
+        │
+        ▼  OpenMetadata — catálogo de trusted_atv4 e delivery_atv4
 ```
+
+Todo esse encadeamento é orquestrado pelo **Apache Airflow**, numa DAG única
+(`dags/atv4_medallion_end_to_end.py`) em que cada etapa é um container próprio.
+Ver [Orquestração](#orquestração--apache-airflow).
 
 ## Como rodar
 
+> Passo a passo completo, com verificações e diagnóstico de falhas:
+> **[EXECUCAO.md](EXECUCAO.md)**.
+
+Pré-requisitos: Docker Desktop rodando, com **pelo menos 8 GB** de memória
+alocada — a stack tem Airflow, Postgres, OpenMetadata e Elasticsearch.
+
 ```bash
-docker compose down -v                                   # opcional: reset total
-docker compose up -d --build                              # build + sobe Postgres
-docker compose run --rm app                                # raw → trusted → Postgres
-docker compose run --rm elt_transformation dbt run         # trusted → delivery
-docker compose run --rm elt_transformation dbt test        # valida invariantes
-docker compose run --rm app uv run python export_delivery.py  # delivery → Parquet
+cp .env.env .env                          # e ajuste HOST_PROJECT_DIR (ver abaixo)
+docker compose --profile build build      # constrói ingestion_atv4 e dbt_atv4
+docker compose up -d                      # sobe Postgres, OpenMetadata e Airflow
+```
+
+Aponte `HOST_PROJECT_DIR`, no `.env`, para este repositório **como o daemon do
+Docker o enxerga**. No Docker Desktop o daemon roda numa VM, onde o disco `C:`
+aparece sob `/run/desktop/mnt/host/c/`:
+
+```env
+HOST_PROJECT_DIR=/run/desktop/mnt/host/c/Users/<voce>/caminho/do/repo
+```
+
+Isso importa porque o Airflow cria as tasks como containers irmãos: os volumes
+que ele pede são resolvidos pelo daemon, não dentro do container do Airflow. Um
+caminho errado aqui não dá erro — o daemon cria um diretório vazio e as tasks
+passam sem processar nada.
+
+Depois disso:
+
+| Serviço | URL | Credenciais |
+|---|---|---|
+| Airflow | http://localhost:8081 | `airflow` / `airflow` |
+| OpenMetadata | http://localhost:8585 | `admin@open-metadata.org` |
+| dbt docs | http://localhost:8181 | — |
+| Great Expectations Data Docs | http://localhost:8182 | — |
+
+Antes da primeira execução, pegue o token do bot de ingestão em **Settings →
+Bots → `ingestion-bot`** no OpenMetadata, grave em `OM_JWT_TOKEN` no `.env` e
+rode `docker compose up -d` de novo para repropagar. Sem ele, todas as tasks
+rodam e só a última (`openmetadata_catalog`) falha.
+
+Com tudo de pé, dispare a DAG `atv4_medallion_end_to_end` pela UI do Airflow.
+
+### Sem orquestrador
+
+O pipeline continua executável à mão, uma etapa por vez:
+
+```bash
+docker compose --profile build run --rm app                                  # raw → trusted → GE → Postgres
+docker compose --profile build run --rm app uv run python -m src.cli export  # delivery → Parquet
+docker compose --profile build run --rm elt_transformation dbt run
+docker compose --profile build run --rm elt_transformation dbt test
 ```
 
 ---
@@ -278,31 +333,34 @@ lê uma tabela do Postgres com `run_query` (`SELECT *`) e escreve em
 `data/delivered_gold/{table}.parquet` — usado pelo `export_delivery.py` para
 satisfazer a exigência do enunciado de delivery também em disco.
 
-### `main.py` — como tudo se conecta
+### `src/cli.py` — as etapas do pipeline
 
-```python
-def main():
-    treat_banks(bancos_path)
+O pipeline é uma cadeia de etapas, e cada uma precisa ser um processo próprio
+para o Airflow poder dar log, retry e status individuais a ela. `src/cli.py` é
+essa fronteira — ele não reimplementa nada, apenas isola os passos que já
+existem em `src/treatment.py`, `src/load.py` e `quality/`:
 
-    for file in complaints_path.iterdir():
-        if file.is_file():
-            treat_complaints(file)
-    consolidate_quarantine("complaints_", "complaints")
+| Subcomando | O que faz |
+|---|---|
+| `transform` | raw → trusted: valida linha a linha com Pydantic e grava os Parquet |
+| `quality-trusted` | gate do Great Expectations sobre os quatro datasets Trusted |
+| `load` | trusted Parquet → Postgres `trusted_atv4` |
+| `export` | delivery (Postgres) → Parquet |
+| `quality-delivery` | gate do Great Expectations sobre a Gold, mais a reconciliação de linhas |
+| `catalog` | publica o catálogo do Postgres no OpenMetadata |
 
-    treat_employer_cnpj(employers_cnpj_path)
-    treat_employer_segment(employers_segments_path)
-
-    engine = ld.get_engine()
-    ld.load_dataset("bancos", "bancos", engine)
-    ld.load_dataset("complaints_", "complaints", engine)
-    ld.load_dataset("employer_segments", "employer_segments", engine)
-    ld.load_dataset("employer_cnpj", "employer_cnpj", engine)
+```bash
+uv run python -m src.cli transform
 ```
 
 Ordem importa: primeiro todos os `treat_*` (raw → trusted, grava Parquet em
-disco), só depois o `load_dataset` por tabela (trusted Parquet → Postgres).
-Complains é o único caso com um loop — as outras três fontes são um arquivo
-por tabela, então uma chamada basta.
+disco), depois o gate de qualidade, e só então o `load_dataset` por tabela
+(trusted Parquet → Postgres). Complains é o único caso com um loop dentro do
+`transform` — as outras três fontes são um arquivo por tabela, então uma
+chamada basta.
+
+`main.py` continua existindo como atalho para rodar `transform`,
+`quality-trusted` e `load` de uma vez, sem orquestrador.
 
 ---
 
@@ -638,6 +696,118 @@ descarta a maior parte dos matches possíveis por construção.
 - **Delivery exportado em dois formatos**, conforme exigido: tabela Postgres
   (`delivery_atv4.delivery_reclamacoes_satisfacao`) e Parquet em disco
   (`data/delivered_gold/`).
+
+---
+
+## Qualidade — Great Expectations
+
+73 expectations distribuídas em cinco suites, duas por camada do medalhão:
+
+| Suite | Dataset | Expectations |
+|---|---|---|
+| `trusted_bancos_quality` | `bancos.parquet` | 5 |
+| `trusted_complaints_quality` | `complaints_*.parquet` | 9 |
+| `trusted_employer_segments_quality` | `employer_segments.parquet` | 18 |
+| `trusted_employer_cnpj_quality` | `employer_cnpj.parquet` | 21 |
+| `delivery_quality` | `delivery_reclamacoes_satisfacao.parquet` | 20 |
+
+Os detalhes de cada regra estão em `quality/README.txt`.
+
+**Os gates são duros.** `quality-trusted` roda entre a escrita dos Parquet e a
+carga no Postgres: se um dataset reprovar, a etapa levanta exceção, a task do
+Airflow falha e nada abaixo dela executa — dado reprovado não chega ao banco
+nem à camada Delivery. O mesmo vale para `quality-delivery`.
+
+Além das expectations, a suite da Delivery faz uma **reconciliação entre
+camadas** (`len(delivery) == len(complaints)`, 918 = 918). Ela não é uma
+expectation porque compara dois datasets distintos, então entra no resultado
+por fora da suite — mas reprova a etapa do mesmo jeito.
+
+### Data Context persistente
+
+O contexto do Great Expectations é **file-based**, no volume `gx_docs` montado
+em `/app/gx`. Com isso cada execução acumula histórico e os Data Docs ficam
+navegáveis em http://localhost:8182.
+
+Contexto persistente cobra um preço que o efêmero não cobrava: `add_pandas`,
+`add_dataframe_asset` e `add_batch_definition_whole_dataframe` levantam erro se
+o objeto já existe — e só a partir da segunda execução. Por isso todo acesso em
+`quality/gx_context.py` é *fetch-first*, caindo no `add_*` apenas no
+`LookupError`.
+
+---
+
+## Orquestração — Apache Airflow
+
+DAG única, `dags/atv4_medallion_end_to_end.py`, disparada manualmente
+(`schedule=None`) — as fontes são arquivos estáticos em `data/raw_free`, então
+não há dado novo chegando que justifique agendamento.
+
+```
+raw_to_trusted → gx_trusted → load_postgres → dbt_run → dbt_test
+    → dbt_docs_generate → export_delivery → gx_delivery → openmetadata_catalog
+```
+
+Cada task é um **container efêmero** criado pelo `DockerOperator` a partir das
+imagens `ingestion_atv4` e `dbt_atv4`. O Airflow não carrega pandas, Great
+Expectations nem dbt: ele só orquestra. Isso mantém as dependências do pipeline
+(que pedem Python 3.14) isoladas das do Airflow (que roda em 3.12).
+
+### Decisões de infraestrutura
+
+**LocalExecutor, não Celery.** Sem redis, worker, triggerer nem flower — para
+uma DAG linear disparada à mão eles só custariam memória. Com LocalExecutor é o
+próprio scheduler que executa as tasks; o triggerer só serviria a operators
+*deferrable*, que não usamos.
+
+**O scheduler roda como root.** É ele quem precisa abrir
+`/var/run/docker.sock` para criar os containers irmãos, e no Docker Desktop o
+socket aparece dentro do container como `root:root 0660` — inacessível para o
+uid 50000 do Airflow. Vale registrar o trade-off: root com acesso ao socket
+equivale a root no host. É aceitável neste ambiente de desenvolvimento local; em
+qualquer outro, o caminho seria um `docker-socket-proxy` com whitelist de
+endpoints.
+
+**Os mounts usam caminhos do host.** O `DockerOperator` é apenas um cliente da
+API do daemon: os `source` dos volumes são resolvidos pelo daemon, não dentro do
+container do Airflow. Daí `HOST_PROJECT_DIR` (ver [Como rodar](#como-rodar)). A
+DAG falha no parse se essa variável não estiver definida — melhor um Import
+Error visível na UI do que tasks verdes que não processaram nada.
+
+**`mount_tmp_dir=False` em todas as tasks.** O diretório temporário que o
+operator monta por padrão existe só dentro do container do Airflow, e o daemon
+não o enxerga.
+
+**Redes com nome fixo** (`atv4_private`, `atv4_front`). O `network_mode` do
+`DockerOperator` precisa do nome real da rede; sem `name:` explícito no compose
+ele dependeria do prefixo do projeto, que é o nome da pasta.
+
+---
+
+## Catálogo — OpenMetadata
+
+O OpenMetadata (2.0.1) cataloga os schemas `trusted_atv4` e `delivery_atv4` do
+Postgres: tabelas, views, colunas e tipos. A ingestão é a última task da DAG.
+
+A configuração está versionada em `om/postgres_catalog.yaml`, mas **sem
+credenciais**: `src/catalog.py` injeta usuário, senha, host e o token do bot a
+partir das variáveis de ambiente antes de criar o workflow. Isso é necessário
+porque o loader de YAML do OpenMetadata não expande `${VAR}` — o caminho
+alternativo seria deixar o token escrito no arquivo.
+
+Dois detalhes que valem registro:
+
+- O `schemaFilterPattern.includes` é **regex, não glob**: `^trusted_atv4$` e
+  `^delivery_atv4$`, ancorados para não pegarem schemas de nome parecido.
+- Depois de `workflow.execute()` vem `workflow.raise_from_status()`. Sem essa
+  chamada o workflow termina com exit 0 mesmo tendo falhado por dentro, e a task
+  do Airflow ficaria verde sem ter catalogado nada.
+
+O servidor precisa de **Elasticsearch** (índice de busca, obrigatório) e de um
+container de migração (`execute-migrate-all`) que faz o bootstrap do schema —
+ambos no compose. O `PIPELINE_SERVICE_CLIENT_ENABLED` está desligado: a ingestão
+é uma task da nossa DAG, versionada no repositório, e não algo que o
+OpenMetadata dispara pela própria interface.
 
 ---
 

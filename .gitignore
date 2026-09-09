@@ -13,3 +13,15 @@ wheels/
 # md
 CLAUDE.md
 
+# Artefatos gerados pelo pipeline (reescritos a cada execucao da DAG)
+data/trusted_parquet/
+data/delivered_gold/
+elt_dbt_atv4/target/
+elt_dbt_atv4/logs/
+
+# Runtime do Airflow
+logs/
+
+# Runtime do Airflow gerado no container (contem secret_key/jwt_secret)
+config/*
+!config/.gitkeep

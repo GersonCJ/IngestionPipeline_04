@@ -7,6 +7,7 @@ import pandas as pd
 import great_expectations as gx
 
 from constants import path_strings
+from quality import gx_context
 
 
 def run() -> bool:
@@ -29,21 +30,9 @@ def run() -> bool:
     # 2. GREAT EXPECTATIONS
     # =========================================================
 
-    context = gx.get_context(
-        mode="ephemeral"
-    )
+    context = gx_context.build_context()
 
-    data_source = context.data_sources.add_pandas(
-        name="employer_segments_runtime"
-    )
-
-    asset = data_source.add_dataframe_asset(
-        name="employer_segments_dataframe"
-    )
-
-    batch_definition = asset.add_batch_definition_whole_dataframe(
-        name="employer_segments_batch"
-    )
+    batch_definition = gx_context.batch_definition_for(context, "employer_segments")
 
     # =========================================================
     # 3. EXPECTATION SUITE
@@ -166,70 +155,21 @@ def run() -> bool:
     # 4. REGISTRAR SUITE
     # =========================================================
 
-    suite = context.suites.add(
-        suite
-    )
-
-    # =========================================================
-    # 5. VALIDATION DEFINITION
-    # =========================================================
-
-    validation_definition = gx.ValidationDefinition(
+    result = gx_context.run_validation(
+        context,
         name="validate_trusted_employer_segments",
-        data=batch_definition,
         suite=suite,
-    )
-
-    validation_definition = (
-        context.validation_definitions.add(
-            validation_definition
-        )
-    )
-
-    # =========================================================
-    # 6. EXECUTAR
-    # =========================================================
-
-    result = validation_definition.run(
-        batch_parameters={
-            "dataframe": df
-        }
+        batch_definition=batch_definition,
+        df=df,
     )
 
     # =========================================================
     # 7. RESULTADO
     # =========================================================
 
-    print("\n===============================================")
-    print(" GREAT EXPECTATIONS — EMPLOYER SEGMENTS")
-    print("===============================================")
+    gx_context.publish_docs(context)
 
-    print(
-        f"Resultado geral: "
-        f"{'PASSOU' if result.success else 'FALHOU'}"
-    )
-
-    print(
-        f"Expectations avaliadas: "
-        f"{result.statistics['evaluated_expectations']}"
-    )
-
-    print(
-        f"Expectations aprovadas: "
-        f"{result.statistics['successful_expectations']}"
-    )
-
-    print(
-        f"Expectations reprovadas: "
-        f"{result.statistics['unsuccessful_expectations']}"
-    )
-
-    print(
-        f"Taxa de sucesso: "
-        f"{result.statistics['success_percent']:.2f}%"
-    )
-
-    return result.success
+    return gx_context.report("EMPLOYER SEGMENTS", result)
 
 
 if __name__ == "__main__":

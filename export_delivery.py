@@ -1,16 +1,14 @@
-import logging
+"""Exporta a camada Delivery do Postgres para parquet.
 
-from dotenv import load_dotenv
+Mantido como entrypoint proprio por compatibilidade com o fluxo manual; a
+implementacao vive em `src/cli.py`, que e o que o Airflow chama.
+"""
 
-import src.load as ld
-
-load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+from src import cli
 
 
 def main():
-    engine = ld.get_engine()
-    ld.export_table_to_parquet("delivery_reclamacoes_satisfacao", "delivery_atv4", engine)
+    cli.export()
 
 
 if __name__ == "__main__":
