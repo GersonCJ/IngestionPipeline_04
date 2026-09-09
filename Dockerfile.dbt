@@ -3,3 +3,8 @@ FROM ghcr.io/dbt-labs/dbt-postgres:1.9.latest
 WORKDIR /usr/app/dbt_atv4_project
 
 COPY ./elt_dbt_atv4 .
+
+# Profiles embutidos na imagem: evita depender de um bind mount extra nas
+# tasks do Airflow, que no Docker Desktop precisariam de caminho do host.
+# As credenciais em si continuam vindo das variaveis DB_* em tempo de execucao.
+COPY ./profiles /root/.dbt

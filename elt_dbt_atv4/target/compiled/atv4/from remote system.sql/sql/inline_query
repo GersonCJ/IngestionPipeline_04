@@ -1,1 +1,0 @@
-select count(*) as total, count(nota_geral) as com_nota from "atv4"."delivery_atv4"."delivery_reclamacoes_satisfacao"

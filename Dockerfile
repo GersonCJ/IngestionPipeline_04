@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Download the latest installer
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -8,20 +8,13 @@ ENV PATH="/root/.local/bin/:$PATH"
 
 WORKDIR /app
 
-# Create directory for the data
-RUN mkdir data
-
-# Bronze data
-RUN mkdir data/raw
-
-# Trusted data
-RUN mkdir data/trusted
-
-# Delivery data (post transformation)
-RUN mkdir data/delivered
+# Pontos de montagem das camadas (ver constants/path_strings.py).
+# O conteudo vem dos mounts em tempo de execucao; aqui so garantimos que os
+# diretorios existam quando a imagem roda sem nenhum volume.
+RUN mkdir -p data/raw trusted delivered gx
 
 # Copy the project into the image
-COPY . . 
+COPY . .
 
 # Disable development dependencies
 ENV UV_NO_DEV=1
