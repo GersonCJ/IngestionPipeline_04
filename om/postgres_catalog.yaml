@@ -1,0 +1,39 @@
+# Ingestao do catalogo do Postgres no OpenMetadata.
+#
+# Este arquivo descreve a ESTRUTURA da ingestao. Credenciais e token nao ficam
+# aqui: `src/catalog.py` os injeta a partir das variaveis de ambiente
+# (DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, OM_SERVER_URL, OM_JWT_TOKEN)
+# antes de criar o workflow — o loader de YAML do OpenMetadata nao expande
+# ${VAR} sozinho.
+
+source:
+  type: postgres
+  serviceName: atv4_postgres
+  serviceConnection:
+    config:
+      type: Postgres
+      scheme: postgresql+psycopg2
+      # username / authType.password / hostPort / database: preenchidos em runtime
+      ingestAllDatabases: false
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      includeTables: true
+      includeViews: true
+      markDeletedTables: true
+      markDeletedSchemas: true
+      schemaFilterPattern:
+        # Regex, nao glob: ancorado para nao pegar schemas parecidos.
+        includes:
+          - "^trusted_atv4$"
+          - "^delivery_atv4$"
+
+sink:
+  type: metadata-rest
+  config: {}
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    # hostPort e jwtToken preenchidos em runtime
+    authProvider: openmetadata

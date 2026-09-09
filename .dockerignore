@@ -1,0 +1,11 @@
+.git
+.venv
+logs/
+dags/
+plugins/
+config/
+# Os dados chegam por volume; copia-los infla a imagem sem necessidade.
+data/
+elt_dbt_atv4/target/
+elt_dbt_atv4/logs/
+__pycache__/
