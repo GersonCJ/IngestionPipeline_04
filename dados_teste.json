@@ -1,0 +1,10 @@
+[
+  {
+    "identificador_cnpj_empresa": "60701190000104",
+    "origem_evento": "teste_integracao_v1"
+  },
+  {
+    "identificador_cnpj_empresa": "00000000000000",
+    "origem_evento": "teste_integracao_v1"
+  }
+]
