@@ -1,0 +1,22 @@
+source:
+  type: dbt
+  serviceName: postgres_atv4
+  sourceConfig:
+    config:
+      type: DBT
+      dbtConfigSource:
+        dbtConfigType: local
+        dbtCatalogFilePath: "/usr/app/dbt_atv4_project/target/catalog.json"
+        dbtManifestFilePath: "/usr/app/dbt_atv4_project/target/manifest.json"
+        dbtRunResultsFilePath: "/usr/app/dbt_atv4_project/target/run_results.json"
+
+sink:
+  type: metadata-rest
+  config: {}
+
+workflowConfig:
+  openMetadataServerConfig:
+    hostPort: "${OM_SERVER_URL}"
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "${OM_JWT_TOKEN}"

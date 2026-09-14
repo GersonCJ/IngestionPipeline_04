@@ -27,6 +27,12 @@ x-airflow-common:
     AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
+    AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+    AIRFLOW_CONN_AWS_DEFAULT: ${AIRFLOW_CONN_AWS_DEFAULT}
+    SQS_QUEUE_URL: ${SQS_QUEUE_URL}
     # Sem esta variavel o scheduler procura a Execution API em localhost:8080
     # dentro do proprio container e as tasks ficam presas em `queued` sem erro.
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
@@ -36,6 +42,7 @@ x-airflow-common:
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     _PIP_ADDITIONAL_REQUIREMENTS: ''
+    
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags:z
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs:z

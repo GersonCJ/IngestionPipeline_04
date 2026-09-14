@@ -1,28 +1,12 @@
-"""Pipeline medalhao Atv4: raw -> trusted -> delivery -> catalogo.
-
-Cada task e um container efemero criado pelo DockerOperator a partir das
-imagens `ingestion_atv4` e `dbt_atv4`. O Airflow nao carrega pandas, Great
-Expectations nem dbt — ele so orquestra.
-
-Duas particularidades desse desenho, ambas consequencia de o Airflow rodar
-dentro de um container:
-
-1. Os `mounts` sao resolvidos pelo daemon do Docker, nao pelo filesystem deste
-   container. Por isso os caminhos vem de HOST_PROJECT_DIR, que descreve o
-   repositorio como o daemon o enxerga (no Docker Desktop, algo como
-   /run/desktop/mnt/host/c/...). Um caminho errado aqui nao gera erro: o
-   daemon cria um diretorio vazio e a task "passa" sem processar nada.
-2. `mount_tmp_dir=False` e obrigatorio — o diretorio temporario que o operator
-   monta por padrao existe so aqui dentro, e o daemon nao o enxerga.
-"""
-
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta
 
 from docker.types import Mount
 
+from airflow.providers.amazon.aws.operators.lambda_function import LambdaInvokeFunctionOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.sdk import DAG
 
@@ -31,9 +15,6 @@ from airflow.sdk import DAG
 HOST_PROJECT_DIR = os.getenv("HOST_PROJECT_DIR", "").rstrip("/")
 
 if not HOST_PROJECT_DIR:
-    # Falhar no parse e melhor do que rodar: sem esta variavel os mounts
-    # apontariam para caminhos vazios e as tasks passariam sem processar nada.
-    # O erro aparece como Import Error na UI do Airflow.
     raise ValueError(
         "HOST_PROJECT_DIR nao definido. Preencha no .env com o caminho deste "
         "repositorio como o daemon do Docker o enxerga — no Docker Desktop, "
@@ -53,6 +34,7 @@ DB_ENV = {
     "DB_USER": os.getenv("DB_USER", "postgres"),
     "DB_PASSWORD": os.getenv("DB_PASSWORD", ""),
     "DB_NAME": os.getenv("DB_NAME", "pipeline_db"),
+    "PYTHONPATH": "/app",
 }
 
 OM_ENV = {
@@ -66,13 +48,10 @@ DATA_MOUNTS = [
     Mount(source=f"{HOST_PROJECT_DIR}/data/raw_free", target="/app/data/raw", type="bind"),
     Mount(source=f"{HOST_PROJECT_DIR}/data/trusted_parquet", target="/app/trusted", type="bind"),
     Mount(source=f"{HOST_PROJECT_DIR}/data/delivered_gold", target="/app/delivered", type="bind"),
-    # Data Context do Great Expectations: volume nomeado, servido pelo nginx.
     Mount(source="gx_docs", target="/app/gx", type="volume"),
 ]
 
 DBT_MOUNTS = [
-    # Bind para que o target/ (manifest e docs) apareca no host e o nginx da
-    # porta 8181 sirva o resultado.
     Mount(source=f"{HOST_PROJECT_DIR}/elt_dbt_atv4", target=DBT_PROJECT_DIR, type="bind"),
 ]
 
@@ -91,6 +70,7 @@ def ingestion_task(task_id: str, step: str, **kwargs) -> DockerOperator:
     return DockerOperator(
         task_id=task_id,
         image=INGESTION_IMAGE,
+        working_dir="/app",
         command=f"uv run python -m src.cli {step}",
         mounts=DATA_MOUNTS,
         environment=kwargs.pop("environment", DB_ENV),
@@ -104,8 +84,6 @@ def dbt_task(task_id: str, command: str) -> DockerOperator:
     return DockerOperator(
         task_id=task_id,
         image=DBT_IMAGE,
-        # Entrypoint explicito em vez de depender do que a imagem define (ou de
-        # limpa-lo com uma string vazia, que tem comportamento ambiguo).
         entrypoint="dbt",
         working_dir=DBT_PROJECT_DIR,
         command=f"{command} --project-dir {DBT_PROJECT_DIR} --profiles-dir /root/.dbt",
@@ -117,24 +95,32 @@ def dbt_task(task_id: str, command: str) -> DockerOperator:
 
 with DAG(
     dag_id="atv4_medallion_end_to_end",
-    description="Raw -> Trusted -> Delivery com gates do Great Expectations e catalogo no OpenMetadata",
-    # As fontes sao arquivos estaticos em data/raw_free: nao ha dado novo
-    # chegando, entao o disparo e manual.
+    description="Raw -> Trusted -> Delivery com gates do Great Expectations, AWS Lambda e catalogo no OpenMetadata",
     schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
     max_active_runs=1,
     default_args={"retries": 0},
-    tags=["atv4", "medallion", "dbt", "great-expectations", "openmetadata"],
+    tags=["atv4", "medallion", "dbt", "great-expectations", "openmetadata", "aws"],
 ) as dag:
+
+# 1. Invocacao do Lambda Producer (inicio da pipeline)
+    lambda_producer = LambdaInvokeFunctionOperator(
+    task_id="lambda_producer",
+    function_name="lambda-produtora",
+    aws_conn_id="aws_default",
+    payload=json.dumps({
+        "stage": "start",
+        "sqs_url": os.getenv("SQS_QUEUE_URL"),
+        "bucket_origem": os.getenv("S3_BUCKET_ORIGEM")
+    }),
+)
 
     raw_to_trusted = ingestion_task(
         "raw_to_trusted",
         "transform",
     )
 
-    # Gate duro: se uma suite reprovar, a task falha e nada abaixo executa —
-    # dado reprovado nao chega ao Postgres nem a camada Delivery.
     gx_trusted = ingestion_task(
         "gx_trusted",
         "quality-trusted",
@@ -165,14 +151,26 @@ with DAG(
         "openmetadata_catalog",
         "catalog",
         environment=OM_ENV,
-        # Unica task que depende de um servico externo pesado, que pode ainda
-        # estar subindo logo apos um `docker compose up`.
         retries=2,
         retry_delay=timedelta(seconds=60),
     )
 
+    # 2. Invocacao do Lambda Consumer no encerramento da pipeline
+    lambda_consumer = LambdaInvokeFunctionOperator(
+    task_id="lambda_consumer",
+    function_name="lambda-consumidora",
+    aws_conn_id="aws_default",
+    payload=json.dumps({
+        "stage": "finish",
+        "sqs_url": os.getenv("SQS_QUEUE_URL"),
+        "dest_bucket": os.getenv("S3_BUCKET_DESTINO", "bucket-destino-dados")
+    }),
+    )
+
+    # Encadeamento completo do fluxo
     (
-        raw_to_trusted
+        lambda_producer
+        >> raw_to_trusted
         >> gx_trusted
         >> load_postgres
         >> dbt_run
@@ -181,4 +179,5 @@ with DAG(
         >> export_delivery
         >> gx_delivery
         >> openmetadata_catalog
+        >> lambda_consumer
     )
