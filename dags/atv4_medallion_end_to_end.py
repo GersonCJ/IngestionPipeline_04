@@ -29,11 +29,11 @@ DBT_IMAGE = "dbt_atv4"
 DBT_PROJECT_DIR = "/usr/app/dbt_atv4_project"
 
 DB_ENV = {
-    "DB_HOST": os.getenv("DB_HOST", "postgres-db"),
-    "DB_PORT": os.getenv("DB_PORT", "5432"),
-    "DB_USER": os.getenv("DB_USER", "postgres"),
-    "DB_PASSWORD": os.getenv("DB_PASSWORD", ""),
-    "DB_NAME": os.getenv("DB_NAME", "pipeline_db"),
+    "DB_HOST": os.getenv("TARGET_DB_HOST", os.getenv("DB_HOST", "postgres-db")),
+    "DB_PORT": os.getenv("TARGET_DB_PORT", os.getenv("DB_PORT", "5432")),
+    "DB_USER": os.getenv("TARGET_DB_USER", os.getenv("DB_USER", "postgres")),
+    "DB_PASSWORD": os.getenv("TARGET_DB_PASS", os.getenv("DB_PASSWORD", "")),
+    "DB_NAME": os.getenv("TARGET_DB_NAME", os.getenv("DB_NAME", "atv4")),
     "PYTHONPATH": "/app",
 }
 
