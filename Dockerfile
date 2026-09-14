@@ -7,6 +7,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/root/.local/bin/:$PATH"
 
 WORKDIR /app
+ENV PYTHONPATH="/app"
 
 # Pontos de montagem das camadas (ver constants/path_strings.py).
 # O conteudo vem dos mounts em tempo de execucao; aqui so garantimos que os

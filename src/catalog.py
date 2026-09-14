@@ -1,10 +1,4 @@
-"""Publica o catalogo do Postgres no OpenMetadata.
-
-Roda o workflow de ingestao em Python, e nao pelo CLI `metadata ingest -c`,
-porque o loader de YAML do OpenMetadata nao expande `${VAR}`: as credenciais e
-o token do bot precisariam ficar escritos no arquivo versionado. Aqui o YAML
-carrega so a estrutura da ingestao e os segredos entram do ambiente.
-"""
+"""Publica o catalogo do Postgres no OpenMetadata."""
 
 import logging
 import os
@@ -32,6 +26,8 @@ def build_config() -> dict:
         )
 
     connection = config["source"]["serviceConnection"]["config"]
+    connection.pop("password", None)
+    
     connection["username"] = os.environ["DB_USER"]
     connection["authType"] = {"password": os.environ["DB_PASSWORD"]}
     connection["hostPort"] = f"{os.environ['DB_HOST']}:{os.environ['DB_PORT']}"
@@ -61,8 +57,6 @@ def run() -> None:
     try:
         workflow.execute()
         workflow.print_status()
-        # Sem isto o workflow termina com exit 0 mesmo tendo falhado por dentro,
-        # e a task do Airflow ficaria verde sem ter catalogado nada.
         workflow.raise_from_status()
     finally:
         workflow.stop()
