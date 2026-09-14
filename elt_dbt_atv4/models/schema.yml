@@ -2,32 +2,61 @@ version: 2
 
 models:
   - name: stg_bancos
+    description: >
+      **Camada Staging**: Dados cadastrais das instituições financeiras 
+      e seus respectivos enquadramentos prudenciais regulados pelo Banco Central do Brasil (BACEN).
+    config:
+      tags: ["Staging", "BACEN", "Cadastro"]
+      meta:
+        owner: "Data Engineering"
+        domain: "Regulatório"
     columns:
       - name: segmento
+        description: "Enquadramento de porte prudencial definido pelo BACEN (S1 até S5)."
         tests:
           - accepted_values:
               values: ['S1', 'S2', 'S3', 'S4', 'S5']
 
   - name: stg_complains
+    description: >
+      **Camada Staging**: Registro histórico trimestral do volume de reclamações de clientes 
+      contra conglomerados financeiros e bancos.
+    config:
+      tags: ["Staging", "BACEN", "Reclamacoes"]
+      meta:
+        owner: "Data Engineering"
+        domain: "Atendimento"
     columns:
       - name: ano
+        description: "Ano de referência do lote de reclamações."
         tests:
           - not_null
       - name: trimestre
+        description: "Trimestre de referência das ocorrências no BACEN."
         tests:
           - not_null
       - name: qtd_recl_total
+        description: "Quantidade consolidada de reclamações registradas no período."
         tests:
           - not_null
       - name: tipo
+        description: "Classificação institucional da entidade no BACEN."
         tests:
           - accepted_values:
               values: ['Conglomerado', 'Banco/financeira']
 
   - name: stg_empregados
+    description: >
+      **Camada Staging**: Indicadores de cultura, satisfação interna e reputação de mercado 
+      coletados via Glassdoor.
+    config:
+      tags: ["Staging", "Glassdoor", "RH"]
+      meta:
+        owner: "Data Engineering"
+        domain: "Recursos Humanos"
     columns:
       - name: chave_nome
+        description: "Chave identificadora normalizada para cruzamento entre as tabelas de bancos e reputação."
         tests:
           - unique
           - not_null
-

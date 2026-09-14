@@ -1,67 +1,106 @@
-"""Publica o catalogo do Postgres no OpenMetadata."""
-
 import logging
 import os
-from pathlib import Path
-
-import yaml
 from dotenv import load_dotenv
 
+try:
+    from metadata.workflow.metadata import MetadataWorkflow
+except ImportError:
+    from metadata.workflow.ingestion import MetadataWorkflow
+
+try:
+    from metadata.generated.schema.entity.services.connections.database.postgresConnection import (
+        PostgresConnection,
+    )
+except ImportError:
+    PostgresConnection = None
+
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(os.getenv("OM_CONFIG_PATH", "/app/om/postgres_catalog.yaml"))
 
+def get_postgres_connection_config(
+    db_host: str, db_port: str, db_user: str, db_password: str, db_name: str
+) -> dict:
+    """Monta a configuracao de conexao compativel com a versao do OpenMetadata."""
+    conn_config = {
+        "type": "Postgres",
+        "hostPort": f"{db_host}:{db_port}",
+        "username": db_user,
+        "database": db_name,
+    }
 
-def build_config() -> dict:
-    """Le o YAML da ingestao e completa o que vem do ambiente."""
-    config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
-
-    token = os.getenv("OM_JWT_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError(
-            "OM_JWT_TOKEN nao definido. Pegue o token em "
-            "http://localhost:8585 -> Settings -> Bots -> ingestion-bot "
-            "e preencha OM_JWT_TOKEN no .env."
+    if PostgresConnection:
+        fields = getattr(
+            PostgresConnection,
+            "model_fields",
+            getattr(PostgresConnection, "__fields__", {}),
         )
+        if "authType" in fields:
+            conn_config["authType"] = {"password": db_password}
+        elif "password" in fields:
+            conn_config["password"] = db_password
+        else:
+            conn_config["authType"] = {"password": db_password}
+    else:
+        conn_config["authType"] = {"password": db_password}
 
-    connection = config["source"]["serviceConnection"]["config"]
-    connection.pop("password", None)
-    
-    connection["username"] = os.environ["DB_USER"]
-    connection["authType"] = {"password": os.environ["DB_PASSWORD"]}
-    connection["hostPort"] = f"{os.environ['DB_HOST']}:{os.environ['DB_PORT']}"
-    connection["database"] = os.environ["DB_NAME"]
-
-    server = config["workflowConfig"]["openMetadataServerConfig"]
-    server["hostPort"] = os.getenv("OM_SERVER_URL", "http://openmetadata-server:8585/api")
-    server["securityConfig"] = {"jwtToken": token}
-
-    return config
+    return conn_config
 
 
 def run() -> None:
-    """Executa a ingestao e falha se algum passo do workflow reportar erro."""
-    from metadata.workflow.metadata import MetadataWorkflow
+    db_host = os.getenv("TARGET_DB_HOST") or os.getenv("DB_HOST", "postgres-db")
+    if db_host in ("postgres", "localhost", "127.0.0.1", "", None):
+        db_host = "postgres-db"
 
-    config = build_config()
+    db_port = os.getenv("TARGET_DB_PORT") or os.getenv("DB_PORT", "5432")
+    db_user = os.getenv("TARGET_DB_USER") or os.getenv("DB_USER", "postgres")
+    db_password = os.getenv("TARGET_DB_PASS") or os.getenv("DB_PASSWORD", "postgres")
+    db_name = os.getenv("TARGET_DB_NAME") or os.getenv("DB_NAME", "atv4")
 
-    logger.info(
-        "Ingerindo catalogo de %s para %s",
-        config["source"]["serviceConnection"]["config"]["hostPort"],
-        config["workflowConfig"]["openMetadataServerConfig"]["hostPort"],
+    om_server_url = os.getenv("OM_SERVER_URL", "http://openmetadata-server:8585/api")
+    om_jwt_token = os.getenv("OM_JWT_TOKEN", "")
+
+    logger.info("Ingerindo catalogo de %s:%s para %s", db_host, db_port, om_server_url)
+
+    pg_conn_config = get_postgres_connection_config(
+        db_host, db_port, db_user, db_password, db_name
     )
 
-    workflow = MetadataWorkflow.create(config)
+    config = {
+        "source": {
+            "type": "postgres",
+            "serviceName": "postgres_service",
+            "serviceConnection": {"config": pg_conn_config},
+            "sourceConfig": {
+                "config": {
+                    "type": "DatabaseMetadata",
+                    "includeTables": True,
+                    "includeViews": True,
+                }
+            },
+        },
+        "sink": {
+            "type": "metadata-rest",
+            "config": {},
+        },
+        "workflowConfig": {
+            "openMetadataServerConfig": {
+                "hostPort": om_server_url,
+                "authProvider": "openmetadata",
+                "securityConfig": {
+                    "jwtToken": om_jwt_token,
+                },
+            }
+        },
+    }
 
-    try:
-        workflow.execute()
-        workflow.print_status()
-        workflow.raise_from_status()
-    finally:
-        workflow.stop()
+    workflow = MetadataWorkflow.create(config)
+    workflow.execute()
+    workflow.print_status()
+    workflow.stop()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     run()
