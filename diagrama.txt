@@ -1,0 +1,15 @@
+┌─────────────────┐       ┌─────────────────┐       ┌────────────────────────┐
+│ Arquivos Locais │ ────> │ Produtor Python │ ────> │  Apache Kafka (Tópico) │
+└─────────────────┘       └─────────────────┘       └───────────┬────────────┘
+                                                                │ (Stream)
+                                                                ▼
+┌─────────────────┐       ┌─────────────────┐       ┌────────────────────────┐
+│  Banco de Dados │ <───> │ Enriquecimento  │ <───> │   PySpark Consumer     │
+│   SQL (MySQL/   │ (JDBC)│   no PySpark    │       │ (Structured Streaming) │
+│ Postgre/ClickH) │       └─────────────────┘       └───────────┬────────────┘
+└─────────────────┘                                             │ (Sink/Persistência)
+                                                                ▼
+                                                    ┌────────────────────────┐
+                                                    │ Disco Local (Arquivos  │
+                                                    │     Parquet/JSON)      │
+                                                    └────────────────────────┘

@@ -31,7 +31,5 @@ CREATE SCHEMA IF NOT EXISTS delivery_atv4;
 
 SET default_table_access_method = heap;
 
-CREATE DATABASE openmetadata_db;
-CREATE DATABASE airflow_db;
 
 
