@@ -1,5 +1,13 @@
 FROM python:3.14-slim
 
+# Instala o Java (necessário para o PySpark) e limpa o cache do apt
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# Define a variável JAVA_HOME para o PySpark encontrar o Java
+ENV JAVA_HOME=/usr/lib/jvm/default-java
+
 # Download the latest installer
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 

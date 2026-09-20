@@ -4,25 +4,22 @@ from pyspark.sql.functions import col, from_json, current_timestamp, sum as _sum
 from pyspark.sql.types import StructType, StructField, StringType, MapType
 
 # Variáveis de ambiente e banco de dados
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
-DB_HOST = os.getenv("DB_HOST", "postgres-db")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "atv4")
-JDBC_URL = f"jdbc:postgresql://{DB_HOST}:{DB_PORT}/{DB_NAME}"
-KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+db_host = os.getenv("TARGET_DB_HOST", "postgres-db")
+db_port = os.getenv("TARGET_DB_PORT", "5432")
+db_name = os.getenv("TARGET_DB_NAME", "atv4")
+db_user = os.getenv("TARGET_DB_USER", "postgres")
+db_pass = os.getenv("TARGET_DB_PASS", "postgres")
+JDBC_URL = f"jdbc:postgresql://{db_host}:{db_port}/{db_name}"
+KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 
 def get_spark() -> SparkSession:
     return (
-        SparkSession.builder.appName("MedallionStreamingPipeline")
-        .config(
-            "spark.jars.packages",
-            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0",
-        )
-        .getOrCreate()
+        SparkSession.builder \
+    .appName("KafkaProducerStream") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
+    .getOrCreate()
     )
-
 
 # ------------------------------------------------------------------------------
 # STREAM 1: RAW (Kafka) -> TRUSTED (Parquet)
@@ -136,6 +133,14 @@ def start_trusted_to_delivery_stream(spark: SparkSession):
 
 if __name__ == "__main__":
     spark = get_spark()
+
+    df_stream = (
+    spark.readStream
+    .format("kafka")
+    .option("kafka.bootstrap.servers", "kafka:9092")
+    .option("subscribe", "topico")
+    .load()
+    )
 
     print("[SPARK] Iniciando Stream 1: RAW -> TRUSTED")
     query_trusted = start_raw_to_trusted_stream(spark)
