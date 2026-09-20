@@ -72,6 +72,13 @@ services:
       context: .
       dockerfile: Dockerfile.consumer
     container_name: pyspark_consumer_atv8
+    restart: unless-stopped
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - TARGET_DB_HOST=postgres-db
+      - TARGET_DB_NAME=target_db
+      - TARGET_DB_USER=postgres
+      - DB_PASSWORD=postgrespassword
     depends_on:
       kafka:
         condition: service_started
@@ -81,12 +88,3 @@ services:
       - ./data:/app/data
     networks:
       - streaming_network
-
-volumes:
-  data_sql:
-    name: "data_sql_atv8"
-
-networks:
-  streaming_network:
-    name: atv8_network
-    driver: bridge

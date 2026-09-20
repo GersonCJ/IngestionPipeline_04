@@ -4,7 +4,13 @@ from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 def main():
-    # Inicializa a sessão Spark baixando os conectores para Kafka e Postgres JDBC
+    # Endereços dinâmicos (Docker usa 'kafka:29092' / Local usa 'localhost:9092')
+    kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+    db_host = os.getenv('TARGET_DB_HOST', 'localhost')
+    db_name = os.getenv('TARGET_DB_NAME', 'target_db')
+    db_user = os.getenv('TARGET_DB_USER', 'postgres')
+    db_pass = os.getenv('DB_PASSWORD', 'postgrespassword')
+
     spark = SparkSession.builder \
         .appName("PySparkStructuredStreamingEnrichment") \
         .config("spark.jars.packages", 
@@ -14,7 +20,6 @@ def main():
 
     spark.sparkContext.setLogLevel("WARN")
 
-    # Schema do payload recebido no Kafka (ajuste os nomes dos campos se necessário)
     schema = StructType([
         StructField("id_transacao", StringType(), True),
         StructField("id_cliente", IntegerType(), True),
@@ -24,7 +29,7 @@ def main():
     # 1. Ingestão da Stream de dados do Kafka
     kafka_stream = spark.readStream \
         .format("kafka") \
-        .option("kafka.bootstrap.servers", "localhost:9092") \
+        .option("kafka.bootstrap.servers", kafka_servers) \
         .option("subscribe", "dados-raw-topic") \
         .option("startingOffsets", "earliest") \
         .load()
@@ -34,19 +39,19 @@ def main():
         .select(from_json(col("json_payload"), schema).alias("data")) \
         .select("data.*")
 
-    # 2. Leitura Estática do Banco Relacional (PostgreSQL) para Enriquecimento
-    pg_url = f"jdbc:postgresql://localhost:5432/{os.getenv('TARGET_DB_NAME', 'target_db')}"
+    # 2. Leitura Estática do Banco PostgreSQL
+    pg_url = f"jdbc:postgresql://{db_host}:5432/{db_name}"
     
     clientes_df = spark.read \
         .format("jdbc") \
         .option("url", pg_url) \
         .option("dbtable", "public.clientes") \
-        .option("user", os.getenv("TARGET_DB_USER", "postgres")) \
-        .option("password", os.getenv("DB_PASSWORD", "postgrespassword")) \
+        .option("user", db_user) \
+        .option("password", db_pass) \
         .option("driver", "org.postgresql.Driver") \
         .load()
 
-    # 3. Enriquecimento via Join (Stream-Static)
+    # 3. Enriquecimento via Join
     enriched_stream = parsed_stream.join(
         clientes_df, 
         parsed_stream.id_cliente == clientes_df.id, 
@@ -59,7 +64,7 @@ def main():
         clientes_df["email"].alias("email_cliente")
     )
 
-    # 4. Escrita contínua em formato Parquet no Disco Local
+    # 4. Escrita no disco local
     output_path = "./data/trusted_parquet/kafka_enriched"
     checkpoint_path = "./data/checkpoints/kafka_enriched"
 
