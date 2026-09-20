@@ -31,5 +31,9 @@ CREATE SCHEMA IF NOT EXISTS delivery_atv4;
 
 SET default_table_access_method = heap;
 
-
+CREATE TABLE IF NOT EXISTS staging_raw.clientes (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
