@@ -15,10 +15,10 @@ KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 def get_spark() -> SparkSession:
     return (
-        SparkSession.builder \
-    .appName("KafkaProducerStream") \
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
-    .getOrCreate()
+        SparkSession.builder
+        .appName("KafkaProducerStream")
+        .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0")
+        .getOrCreate()
     )
 
 # ------------------------------------------------------------------------------
@@ -45,7 +45,6 @@ def start_raw_to_trusted_stream(spark: SparkSession):
         .select("data.*")
     )
 
-    # Tratamento e filtro da camada Trusted (Exemplo para 'complaints')
     trusted_complaints = (
         parsed_df.filter(col("dataset_type") == "complaints")
         .select(
@@ -57,11 +56,9 @@ def start_raw_to_trusted_stream(spark: SparkSession):
             .cast("int")
             .alias("qtd_recl_total"),
         )
-        # Regra de qualidade da Trusted: descarta registros sem CNPJ
         .filter(col("cnpj_base").isNotNull() & (col("cnpj_base") != ""))
     )
 
-    # Persistência no disco local (Camada Trusted)
     return (
         trusted_complaints.writeStream.format("parquet")
         .option("path", "./data/trusted/complaints/")
@@ -83,12 +80,10 @@ def start_trusted_to_delivery_stream(spark: SparkSession):
         StructField("qtd_recl_total", StringType(), True),
     ])
 
-    # Leitura em streaming a partir da pasta Trusted
     trusted_stream = spark.readStream.schema(trusted_schema).parquet(
         "./data/trusted/complaints/"
     )
 
-    # Agregação e cálculo de KPIs (Camada Delivery)
     delivery_df = (
         trusted_stream.withColumn("created_at", current_timestamp())
         .withWatermark("created_at", "10 minutes")
@@ -99,24 +94,22 @@ def start_trusted_to_delivery_stream(spark: SparkSession):
         )
     )
 
-    # Função de escrita customizada para salvar no Postgres e no disco
     def write_delivery_sinks(batch_df, batch_id):
         if batch_df.isEmpty():
             return
 
-        # 1. Grava no PostgreSQL (Schema delivery_atv4)
+        # Corrigido: uso das variáveis db_user e db_pass
         (
             batch_df.write.format("jdbc")
             .option("url", JDBC_URL)
             .option("dbtable", "delivery_atv4.delivery_reclamacoes_agregadas")
-            .option("user", DB_USER)
-            .option("password", DB_PASSWORD)
+            .option("user", db_user)
+            .option("password", db_pass)
             .option("driver", "org.postgresql.Driver")
             .mode("append")
             .save()
         )
 
-        # 2. Exporta réplica em Parquet para a camada Delivery local
         (
             batch_df.write.mode("append").parquet(
                 "./data/delivery/reclamacoes_agregadas/"
@@ -134,19 +127,10 @@ def start_trusted_to_delivery_stream(spark: SparkSession):
 if __name__ == "__main__":
     spark = get_spark()
 
-    df_stream = (
-    spark.readStream
-    .format("kafka")
-    .option("kafka.bootstrap.servers", "kafka:9092")
-    .option("subscribe", "topico")
-    .load()
-    )
-
     print("[SPARK] Iniciando Stream 1: RAW -> TRUSTED")
     query_trusted = start_raw_to_trusted_stream(spark)
 
     print("[SPARK] Iniciando Stream 2: TRUSTED -> DELIVERY")
     query_delivery = start_trusted_to_delivery_stream(spark)
 
-    # Mantém a aplicação rodando continuamente
     spark.streams.awaitAnyTermination()

@@ -12,21 +12,13 @@ def main():
     db_user = os.getenv("TARGET_DB_USER", "postgres")
     db_pass = os.getenv("TARGET_DB_PASS", "postgres")
 
-    df_stream = (
-        spark.readStream
-        .format("kafka")
-        .option("kafka.bootstrap.servers", "kafka:9092")
-        .option("subscribe", "topico")
-        .load()
-        )
-
-    # 2. Inicialização do Spark Context
+    # 2. Inicialização da SparkSession (versão compatível 3.5.0 / Scala 2.12)
     spark = (
-    SparkSession.builder
-    .appName("PySparkStructuredStreamingEnrichment")
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.0,org.postgresql:postgresql:42.6.0")
-    .getOrCreate()
-)
+        SparkSession.builder
+        .appName("PySparkStructuredStreamingEnrichment")
+        .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0")
+        .getOrCreate()
+    )
 
     spark.sparkContext.setLogLevel("WARN")
 
