@@ -57,12 +57,12 @@ cd ~/IA/Workspace
 Clone e entre no projeto:
 
 ```powershell
-git clone https://github.com/GersonCJ/IngestionPipeline_04.git
+git clone [https://github.com/GersonCJ/IngestionPipeline_04.git](https://github.com/GersonCJ/IngestionPipeline_04.git)
 Set-Location IngestionPipeline_04
 ```
 
 ```bash
-git clone https://github.com/GersonCJ/IngestionPipeline_04.git
+git clone [https://github.com/GersonCJ/IngestionPipeline_04.git](https://github.com/GersonCJ/IngestionPipeline_04.git)
 cd IngestionPipeline_04
 ```
 
@@ -108,7 +108,7 @@ caminho sugerido no passo 1, ela fica assim:
 HOST_PROJECT_DIR=/run/desktop/mnt/host/c/Users/<seu-usuario>/IA/Workspace/IngestionPipeline_04
 ```
 
-Deixe `OM_JWT_TOKEN` vazio por enquanto — ele é preenchido no passo 7.
+Deixe `OM_JWT_TOKEN` vazio por enquanto — ele é preenchido no passo 8.
 
 ---
 
@@ -144,7 +144,33 @@ docker image rm customized-airflow:latest openmetadata/server:1.3.2 ingestion_at
 
 ---
 
-## 4. Construir as imagens das tasks
+## 4. Garantir Schemas e Banco de Dados no PostgreSQL
+
+O consumidor PySpark escreve especificamente no banco de dados **`atv4`** e no schema **`delivery_atv4`**. Certifique-se de que o schema existe antes do consumidor tentar gravar os dados para evitar exceções do tipo `PSQLException`.
+
+Crie o schema apontando diretamente para a base `atv4`:
+
+```powershell
+docker exec -it postgres-db psql -U postgres -d atv4 -c "CREATE SCHEMA IF NOT EXISTS delivery_atv4;"
+```
+
+```bash
+docker exec -it postgres-db psql -U postgres -d atv4 -c "CREATE SCHEMA IF NOT EXISTS delivery_atv4;"
+```
+
+Confira se o schema foi criado com sucesso listando os schemas da base `atv4`:
+
+```powershell
+docker exec -it postgres-db psql -U postgres -d atv4 -c "\dn"
+```
+
+```bash
+docker exec -it postgres-db psql -U postgres -d atv4 -c "\dn"
+```
+
+---
+
+## 5. Construir as imagens das tasks
 
 ```powershell
 docker compose --profile build build
@@ -165,7 +191,7 @@ O Airflow **não** recebe pandas, GE nem dbt — ele só orquestra.
 
 ---
 
-## 5. Subir a stack
+## 6. Subir a stack
 
 ```powershell
 docker compose up -d
@@ -194,6 +220,7 @@ O que esperar, nesta ordem:
 4. `openmetadata-server` → `healthy`
 5. `airflow-init` → **exited (0)**
 6. `airflow-apiserver`, `airflow-scheduler`, `airflow-dag-processor` → `healthy`
+7. `pyspark-consumer` → **running**
 
 Os dois containers de bootstrap somem de `docker compose ps` depois de
 terminarem. Para vê-los:
@@ -206,19 +233,19 @@ docker compose ps -a
 docker compose ps -a
 ```
 
-Para acompanhar um serviço específico:
+Para acompanhar o consumidor PySpark e verificar o envio de lotes do Kafka para o Postgres:
 
 ```powershell
-docker compose logs -f openmetadata-server
+docker logs -f pyspark-consumer
 ```
 
 ```bash
-docker compose logs -f openmetadata-server
+docker logs -f pyspark-consumer
 ```
 
 ---
 
-## 6. Conferir que o Airflow leu a DAG
+## 7. Conferir que o Airflow leu a DAG
 
 ```powershell
 docker compose exec --user airflow airflow-scheduler airflow dags list
@@ -262,7 +289,7 @@ As interfaces já devem estar no ar:
 | Serviço | URL | Credenciais |
 |---|---|---|
 | Airflow | http://localhost:8081 | `airflow` / `airflow` |
-| OpenMetadata | http://localhost:8585 | ver passo 7 |
+| OpenMetadata | http://localhost:8585 | ver passo 8 |
 | dbt docs | http://localhost:8181 | — |
 | Data Docs (Great Expectations) | http://localhost:8182 | — |
 
@@ -271,7 +298,7 @@ artefatos que o pipeline ainda não gerou.
 
 ---
 
-## 7. Pegar o token do OpenMetadata
+## 8. Pegar o token do OpenMetadata
 
 A última task da DAG publica o catálogo no OpenMetadata, e para isso precisa do
 token do bot de ingestão.
@@ -311,7 +338,7 @@ Se você pular este passo, tudo roda normalmente e **apenas a última task**
 
 ---
 
-## 8. Rodar o pipeline
+## 9. Rodar o pipeline
 
 Pela interface: abra http://localhost:8081, entre em
 `atv4_medallion_end_to_end` e clique em **Trigger**.
@@ -339,7 +366,7 @@ justifique agendamento.
 
 ---
 
-## 9. Conferir o resultado
+## 10. Conferir o resultado
 
 **O sinal mais importante** é que os arquivos mudaram no repositório. Se as
 tasks passaram mas os arquivos não mudaram, o `HOST_PROJECT_DIR` está apontando
@@ -355,17 +382,25 @@ ls -l data/trusted_parquet data/delivered_gold
 
 O banco:
 
+1. Listar as tabelas criadas no schema `delivery_atv4`:
+
 ```powershell
-docker compose exec postgres-db psql -U postgres -d pipeline_db -c "\dt trusted_atv4.*"
-docker compose exec postgres-db psql -U postgres -d pipeline_db -c "select count(*) from delivery_atv4.delivery_reclamacoes_satisfacao;"
+docker exec -it postgres-db psql -U postgres -d atv4 -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'delivery_atv4';"
 ```
 
 ```bash
-docker compose exec postgres-db psql -U postgres -d pipeline_db -c '\dt trusted_atv4.*'
-docker compose exec postgres-db psql -U postgres -d pipeline_db -c 'select count(*) from delivery_atv4.delivery_reclamacoes_satisfacao;'
+docker exec -it postgres-db psql -U postgres -d atv4 -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'delivery_atv4';"
 ```
 
-Esperado: 4 tabelas em `trusted_atv4` e **918 linhas** no mart.
+2. Validar o número de registros inseridos (exemplo com a tabela de reclamações agregadas):
+
+```powershell
+docker exec -it postgres-db psql -U postgres -d atv4 -c "SELECT count(*) FROM delivery_atv4.delivery_reclamacoes_agregadas;"
+```
+
+```bash
+docker exec -it postgres-db psql -U postgres -d atv4 -c "SELECT count(*) FROM delivery_atv4.delivery_reclamacoes_agregadas;"
+```
 
 E as interfaces:
 
@@ -378,7 +413,7 @@ E as interfaces:
 
 ---
 
-## 10. Provar que o gate de qualidade funciona
+## 11. Provar que o gate de qualidade funciona
 
 Rodar o pipeline com sucesso mostra que a orquestração funciona. O que prova que
 ela **protege** alguma coisa é vê-la barrar dado ruim.
@@ -408,7 +443,7 @@ Delivery. Depois é só restaurar a linha e reconstruir.
 
 ---
 
-## 11. Parar e recomeçar
+## 12. Parar e recomeçar
 
 ```powershell
 docker compose stop            # pausa, preservando os dados
@@ -424,12 +459,19 @@ docker compose down            # remove os containers, preserva os volumes
 docker compose down -v         # apaga tudo, inclusive o banco — recomeço do zero
 ```
 
-Depois de um `down -v`, volte ao passo 4 (e o token do passo 7 precisará ser
-gerado de novo, porque o `openmetadata_db` foi recriado).
+Depois de um `down -v`, volte ao passo 4 (lembrando de recriar os schemas no banco `atv4` e pegar o token do OpenMetadata novamente no passo 8).
 
 ---
 
 ## Quando algo falha
+
+### `org.postgresql.util.PSQLException: ERROR: schema "delivery_atv4" does not exist`
+
+O schema não foi criado dentro da base de dados correta (`atv4`). Certifique-se de passar o parâmetro `-d atv4` ao psql para criar o schema na base usada pelo `consumer.py`:
+
+```powershell
+docker exec -it postgres-db psql -U postgres -d atv4 -c "CREATE SCHEMA IF NOT EXISTS delivery_atv4;"
+```
 
 ### `ModuleNotFoundError: No module named 'airflow'` ao usar `docker compose exec`
 
@@ -502,7 +544,7 @@ docker compose exec --user airflow airflow-scheduler printenv HOST_PROJECT_DIR
 
 ### `openmetadata_catalog` falha com 401 ou reclamando do token
 
-`OM_JWT_TOKEN` vazio, expirado ou revogado. Refaça o passo 7 — o token pode ser
+`OM_JWT_TOKEN` vazio, expirado ou revogado. Refaça o passo 8 — o token pode ser
 revogado e regerado na mesma tela.
 
 ### O container filho não encontra `postgres-db`
@@ -538,7 +580,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8586/healthcheck
 O `init.sql` só roda quando o volume do Postgres está vazio. Se você reaproveitou
 um volume antigo, os schemas `trusted_atv4` / `delivery_atv4` e os databases
 `airflow_db` / `openmetadata_db` não foram criados. Solução: `docker compose down -v`
-e recomeçar do passo 4.
+e recomeçar a partir do passo 4.
 
 ---
 
