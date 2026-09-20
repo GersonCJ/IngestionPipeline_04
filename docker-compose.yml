@@ -106,10 +106,15 @@ x-openmetadata-common-env:
   JWT_ISSUER: "open-metadata.org"
   JWT_KEY_ID: "Gb389a-9f76-gdjs-a92j-0242bk94356"
   # A ingestao e uma task da nossa DAG, nao do managed-apis do OpenMetadata.
-  PIPELINE_SERVICE_CLIENT_ENABLED: "false"
+  # PIPELINE_SERVICE_CLIENT_ENABLED: "false"
   SECRET_MANAGER: db
   FERNET_KEY: ${OM_FERNET_KEY:-jJ/9sz0g0OHxsfxOoSfdFdmk3ysNmPRnH3TUAbz3IHA=}
   OPENMETADATA_HEAP_OPTS: "-Xmx768m -Xms512m"
+  # Habilitar o gerenciador interno de ingestao (alterado de "false" para "true"):
+  PIPELINE_SERVICE_CLIENT_ENABLED: "true"
+  PIPELINE_SERVICE_CLIENT_TYPE: openmetadata
+  PIPELINE_SERVICE_CLIENT_ENDPOINT: http://openmetadata-ingestion:8080
+  PIPELINE_SERVICE_CLIENT_API_KEY: ${OM_PIPELINE_API_KEY:-secret}
 
 
 services:
@@ -199,6 +204,22 @@ services:
     networks:
       - private_network
       - front_network
+  
+  openmetadata-ingestion:
+    image: docker.getcollate.io/openmetadata/ingestion:2.0.1
+    container_name: openmetadata_ingestion
+    restart: always
+    command: ["standalone"]
+    environment:
+      OPENMETADATA_SERVER_URL: http://openmetadata-server:8585/api
+      AIRFLOW__CORE__FERNET_KEY: ${OM_FERNET_KEY:-jJ/9sz0g0OHxsfxOoSfdFdmk3ysNmPRnH3TUAbz3IHA=}
+    volumes:
+      - ./elt_dbt_atv4/target:/tmp/dbt_target:ro
+    depends_on:
+      openmetadata-server:
+        condition: service_healthy
+    networks:
+      - private_network
 
   # --------------------------------------------------------------- Airflow
   airflow-init:
