@@ -1,9 +1,6 @@
 version: '3.8'
 
 services:
-  # ---------------------------------------------------------------------------
-  # 1. BANCO DE DADOS (POSTGRESQL)
-  # ---------------------------------------------------------------------------
   postgres-db:
     image: postgres:15-alpine
     container_name: postgres-db
@@ -16,16 +13,15 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - streaming-net
 
-  # ---------------------------------------------------------------------------
-  # 2. BROKER DE MENSAGENS (ZOOKEEPER + KAFKA)
-  # ---------------------------------------------------------------------------
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
+    ports:
+      - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -39,7 +35,7 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
-      - "29093:29093"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -47,17 +43,14 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
     networks:
       - streaming-net
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ---------------------------------------------------------------------------
-  # 3. CONSUMIDOR PYSPARK (STREAMING)
-  # ---------------------------------------------------------------------------
   pyspark-consumer:
     build:
       context: .
@@ -66,23 +59,20 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-      postgres-db:
-        condition: service_started
     environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - TARGET_DB_HOST=postgres-db
       - TARGET_DB_PORT=5432
       - TARGET_DB_NAME=atv4
       - TARGET_DB_USER=postgres
       - TARGET_DB_PASS=postgres
     volumes:
-      - ./kafka:/app/kafka
+      - .:/app
+      - ./data/raw_free:/app/data/raw_free
     command: ["uv", "run", "python", "/app/kafka/consumer.py"]
     networks:
       - streaming-net
 
-  # ---------------------------------------------------------------------------
-  # 4. PRODUTOR PYTHON (RAW INGESTION)
-  # ---------------------------------------------------------------------------
   python-producer:
     build:
       context: .
@@ -91,12 +81,10 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-      postgres-db:
-        condition: service_started
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     volumes:
-      - ./kafka:/app/kafka
+      - .:/app
     command: ["uv", "run", "python", "/app/kafka/producer.py"]
     networks:
       - streaming-net
