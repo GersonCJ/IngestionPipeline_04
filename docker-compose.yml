@@ -1,98 +1,106 @@
-services:
+version: '3.8'
 
-  # ------------------------------------------------------------------ Banco SQL (Enriquecimento)
+services:
+  # ---------------------------------------------------------------------------
+  # 1. BANCO DE DADOS (POSTGRESQL)
+  # ---------------------------------------------------------------------------
   postgres-db:
-    image: postgres:17.1
-    container_name: postgres_atv8
+    image: postgres:15-alpine
+    container_name: postgres-db
     restart: always
     environment:
-      POSTGRES_USER: ${TARGET_DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgrespassword}
-      POSTGRES_DB: ${TARGET_DB_NAME:-target_db}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: atv4
     ports:
       - "5432:5432"
     volumes:
-      - data_sql:/var/lib/postgresql/data:z
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${TARGET_DB_USER:-postgres}", "-d", "${TARGET_DB_NAME:-target_db}"]
-      interval: 10s
-      retries: 5
-      start_period: 5s
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Opcional: para criar schemas na inicialização
     networks:
-      - streaming_network
+      - streaming-net
 
-  # ------------------------------------------------------------------ Mensageria (Kafka + ZooKeeper)
+  # ---------------------------------------------------------------------------
+  # 2. BROKER DE MENSAGENS (ZOOKEEPER + KAFKA)
+  # ---------------------------------------------------------------------------
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper_atv8
+    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     networks:
-      - streaming_network
+      - streaming-net
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka_atv8
+    container_name: kafka
+    depends_on:
+      - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      # Permite acesso interno (entre containers em kafka:9092) e externo (no host em localhost:29092)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    depends_on:
-      - zookeeper
     networks:
-      - streaming_network
+      - streaming-net
 
-  # ------------------------------------------------------------------ Interface Gráfica do Kafka
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka_ui_atv8
-    ports:
-      - "8080:8080"
-    environment:
-      DYNAMIC_CONFIG_ENABLED: 'true'
-      KAFKA_CLUSTERS_0_NAME: local-cluster
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
-    depends_on:
-      - kafka
-    networks:
-      - streaming_network
-
-  # ------------------------------------------------------------------ Consumidor PySpark (Linux Container)
+  # ---------------------------------------------------------------------------
+  # 3. CONSUMIDOR PYSPARK (STREAMING)
+  # ---------------------------------------------------------------------------
   pyspark-consumer:
     build:
       context: .
-      dockerfile: Dockerfile.consumer
-    container_name: pyspark_consumer_atv8
-    restart: unless-stopped
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - TARGET_DB_HOST=postgres-db
-      - TARGET_DB_NAME=target_db
-      - TARGET_DB_USER=postgres
-      - DB_PASSWORD=postgrespassword
+      dockerfile: Dockerfile
+    container_name: pyspark-consumer
     depends_on:
-      kafka:
-        condition: service_started
-      postgres-db:
-        condition: service_healthy
+      - kafka
+      - postgres-db
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: atv4
     volumes:
-      - ./data:/app/data
+      - .:/app
+    # Executa o consumer garantindo o download dos pacotes do Kafka e Postgres JDBC
+    command: >
+      spark-submit 
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 
+      /app/consumer.py
     networks:
-      - streaming_network
+      - streaming-net
+
+  # ---------------------------------------------------------------------------
+  # 4. PRODUTOR PYTHON (RAW INGESTION)
+  # ---------------------------------------------------------------------------
+  python-producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: python-producer
+    depends_on:
+      - kafka
+      - pyspark-consumer
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    volumes:
+      - .:/app
+    command: python /app/producer.py
+    networks:
+      - streaming-net
 
 volumes:
-  data_sql:
-    name: "data_sql_atv8"
+  postgres_data:
 
 networks:
-  streaming_network:
-    name: atv8_network
+  streaming-net:
     driver: bridge

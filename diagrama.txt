@@ -1,15 +1,30 @@
 ┌─────────────────┐       ┌─────────────────┐       ┌────────────────────────┐
-│ Arquivos Locais │ ────> │ Produtor Python │ ────> │  Apache Kafka (Tópico) │
-└─────────────────┘       └─────────────────┘       └───────────┬────────────┘
-                                                                │ (Stream)
-                                                                ▼
+│ Arquivos Locais │ ────> │ Produtor Python │ ────> │  Apache Kafka (Tópico) │ [CAMADA RAW / BRONZE]
+└─────────────────┘       └─────────────────┘       │      "raw-events"      │
+                                                        └───────────┬────────────┘
+                                                                    │ (Stream 1)
+                                                                    ▼
 ┌─────────────────┐       ┌─────────────────┐       ┌────────────────────────┐
-│  Banco de Dados │ <───> │ Enriquecimento  │ <───> │   PySpark Consumer     │
-│   SQL (MySQL/   │ (JDBC)│   no PySpark    │       │ (Structured Streaming) │
-│ Postgre/ClickH) │       └─────────────────┘       └───────────┬────────────┘
-└─────────────────┘                                             │ (Sink/Persistência)
+│ Banco Relacional│ <───> │ Validação &     │ <───> │   PySpark Consumer     │ [CAMADA TRUSTED / SILVER]
+│ Postgres (JDBC) │       │ Enriquecimento  │       │   (Parse + Schema)     │
+└─────────────────┘       └────────┬────────┘       └───────────┬────────────┘
+                                   │                            │
+                        (Inválidos)│                            │ (Sink Stream)
+                                   ▼                            ▼
+                        ┌──────────────────┐        ┌────────────────────────┐
+                        │ Quarentena / DLQ │        │  Disco Local           │
+                        │ (_rejected/*.csv)│        │  (/data/trusted/*.pq)  │
+                        └──────────────────┘        └───────────┬────────────┘
+                                                                │
+                                                                │ (Stream 2)
+                                                                ▼
+┌─────────────────┐                                 ┌────────────────────────┐
+│ Banco PostgreSQL│ <────────────────────────────── │   PySpark Consumer     │ [CAMADA DELIVERY / GOLD]
+│ (delivery_atv4) │          (Sink JDBC)            │   (Windowing / KPIs)   │
+└─────────────────┘                                 └───────────┬────────────┘
+                                                                │ (Sink Stream)
                                                                 ▼
                                                     ┌────────────────────────┐
-                                                    │ Disco Local (Arquivos  │
-                                                    │     Parquet/JSON)      │
+                                                    │  Disco Local           │
+                                                    │  (/data/delivery/*.pq) │
                                                     └────────────────────────┘
