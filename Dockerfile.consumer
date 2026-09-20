@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+# Instala o Java JDK e dependências do sistema necessárias para o PySpark no Linux
+RUN apt-get update && \
+    apt-get install -y default-jre-headless curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Instala o PySpark na mesma versão
+RUN pip install --no-cache-dir pyspark==3.5.0
+
+# Copia o código do consumidor para dentro do container
+COPY kafka/consumer.py /app/consumer.py
+
+CMD ["python", "/app/consumer.py"]

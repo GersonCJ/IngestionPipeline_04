@@ -67,6 +67,21 @@ services:
     networks:
       - streaming_network
 
+  pyspark-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    container_name: pyspark_consumer_atv8
+    depends_on:
+      kafka:
+        condition: service_started
+      postgres-db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    networks:
+      - streaming_network
+
 volumes:
   data_sql:
     name: "data_sql_atv8"
